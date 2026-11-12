@@ -6,9 +6,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type Log from '../common/logger';
-import { findRandomPort } from '../common/ports';
-import { getVSCodeServerConfig } from '../serverConfig';
+import type Log from '../logger';
 import { parseSpinAuthority, SPIN_AUTHORITY } from './authority';
 import { SpinCli } from './cli';
 import { openWorkspace, type OpenedWorkspace } from './open';
@@ -34,6 +32,15 @@ export function spinBinary(setting: string, spinboxPath: string | undefined, pla
     return 'spin';
 }
 
+/** This editor's commit, whose server the workspace runs: its product.json says it. */
+async function editorCommit(): Promise<string> {
+    const product = JSON.parse(await fs.promises.readFile(path.join(vscode.env.appRoot, 'product.json'), 'utf8')) as { commit?: unknown };
+    if (typeof product.commit !== 'string') {
+        throw new Error(`${vscode.env.appRoot}/product.json names no commit: Spinbox opens workspaces in a released VS Code`);
+    }
+    return product.commit;
+}
+
 export class SpinboxResolver implements vscode.RemoteAuthorityResolver, vscode.Disposable {
     private opened: OpenedWorkspace | undefined;
 
@@ -43,7 +50,7 @@ export class SpinboxResolver implements vscode.RemoteAuthorityResolver, vscode.D
         const { workspace, host } = parseSpinAuthority(authority);
         this.logger.info(`Resolving Spinbox workspace '${workspace}' (attempt #${context.resolveAttempt})`);
         await this.close();
-        const server = await getVSCodeServerConfig(this.logger);
+        const commit = await editorCommit();
         const cli = new SpinCli(spinBinary(
             vscode.workspace.getConfiguration('remote.spin').get<string>('cliPath', ''),
             vscode.extensions.getExtension(SPINBOX_EXTENSION)?.extensionPath,
@@ -56,14 +63,11 @@ export class SpinboxResolver implements vscode.RemoteAuthorityResolver, vscode.D
                 location: vscode.ProgressLocation.Notification,
                 title: `Opening Spinbox workspace ${workspace}`,
             }, () => openWorkspace({
-                cli, workspace, host, commit: server.commit, version: server.version, start: true,
+                cli, workspace, host, commit, version: vscode.version, start: true,
                 home: os.homedir(), pid: process.pid, log: line => this.logger.trace(line),
             }));
             this.opened = opened;
-            const localPort = await findRandomPort();
-            await opened.connection.addTunnel({
-                name: `spin_${workspace}_${localPort}`, remoteAddr: '127.0.0.1', remotePort: opened.port, localPort,
-            });
+            const localPort = await opened.connection.forwardLocal(opened.port);
             this.logger.info(`Spinbox workspace '${workspace}' (${opened.workspaceId}) open on 127.0.0.1:${localPort}`);
             return new vscode.ResolvedAuthority('127.0.0.1', localPort, opened.connectionToken);
         } catch (e) {

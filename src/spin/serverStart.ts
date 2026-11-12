@@ -4,9 +4,6 @@
 // workspace without it is refused with what to do, since `spin code` already asked the
 // installation for it.
 
-import { escapeShellArg } from '../common/shellQuote';
-import { parseServerInstallOutput } from '../serverSetup';
-
 const EXTENSIONS_DIR = '/run/spin-stack';
 const COMMIT = /^[0-9a-f]{40}$/;
 
@@ -25,7 +22,7 @@ export const SERVER_DID_NOT_START = 3;
  * The script, for `sh -c`: it reuses this commit's server when one runs (a reconnect), and
  * otherwise starts it on a fresh port and token, both kept under ~/.vscode-server/spinbox so
  * only root reads them. It answers between `<id>: start` and `<id>: end` as `key==value==`
- * lines, as upstream's server-setup.sh does.
+ * lines, as jeanp413/open-remote-ssh's server-setup.sh does.
  */
 export function serverStartScript(commit: string, id: string): string {
     const server = escapeShellArg(carriedServer(commit));
@@ -66,7 +63,7 @@ export class ServerStartError extends Error { }
 
 /** Reads the script's answer, refusing a server it could not find or start. */
 export function readServerStart(stdout: string, id: string, commit: string): StartedServer {
-    const answer = parseServerInstallOutput(stdout, id);
+    const answer = readAnswer(stdout, id);
     if (!answer) {
         throw new ServerStartError('the workspace did not answer the server start');
     }
@@ -81,7 +78,33 @@ export function readServerStart(stdout: string, id: string, commit: string): Sta
     return { port, connectionToken: answer.connectionToken };
 }
 
+// A value may hold "==" itself: only the last one ends it.
+const ANSWER_LINE = /^(\w+)==(.*)==$/;
+
+/** The `key==value==` lines between `<id>: start` and `<id>: end`, or undefined without both. */
+function readAnswer(stdout: string, id: string): Record<string, string> | undefined {
+    const start = `${id}: start`;
+    const from = stdout.indexOf(start);
+    const to = from < 0 ? -1 : stdout.indexOf(`${id}: end`, from + start.length);
+    if (to < 0) {
+        return undefined;
+    }
+    const answer: Record<string, string> = {};
+    for (const line of stdout.slice(from + start.length, to).split(/\r?\n/)) {
+        const match = ANSWER_LINE.exec(line);
+        if (match) {
+            answer[match[1]] = match[2];
+        }
+    }
+    return answer;
+}
+
 /** The command that runs script with sh in the workspace, quoted for ssh's exec. */
 export function shCommand(script: string): string {
     return `sh -c ${escapeShellArg(script)}`;
+}
+
+/** value as one POSIX shell word: single-quoted, each ' inside closed, escaped and reopened. */
+function escapeShellArg(value: string): string {
+    return `'${value.replace(/'/g, `'\\''`)}'`;
 }

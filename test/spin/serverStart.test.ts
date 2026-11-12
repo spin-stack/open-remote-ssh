@@ -54,6 +54,11 @@ describe('readServerStart', () => {
             .toEqual({ port: 40123, connectionToken: 'abc' });
     });
 
+    it('reads the answer between its own markers only, a value holding == whole', () => {
+        const out = `noise\nexitCode==9==\n${answer(['', 'exitCode==0==', 'listeningOn==40123==', 'connectionToken==a==b=='])}\nconnectionToken==late==`;
+        expect(readServerStart(out, ID, COMMIT)).toEqual({ port: 40123, connectionToken: 'a==b' });
+    });
+
     it.each([
         ['no answer', 'sh: 1: syntax error', /did not answer/],
         ['a server that did not start', answer(['exitCode==3==', 'listeningOn====', 'connectionToken====']), /did not start in the workspace \(exit 3\)/],

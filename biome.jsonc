@@ -1,10 +1,8 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.6.3/schema.json",
-  // Most of src/ is jeanp413/open-remote-ssh's and developerz-ai/open-remote-ssh-tmux's, merged
-  // from upstream again and again: rewriting their style - indentation, quotes, import order,
-  // the rules below - would make every merge a conflict over what nobody changed. So the
-  // formatter is off, imports keep their order, and the rules that are only style are off;
-  // what is left of recommended holds every file, warnings included (package.json's lint).
+  // Lint only: recommended holds every file, warnings included (package.json's lint), but for
+  // the rules below, which are a style the code is not written in rather than a defect. The
+  // formatter is off, and imports keep the order they are written in.
   "assist": { "actions": { "source": { "organizeImports": "off" } } },
   "linter": {
     "enabled": true,
@@ -15,14 +13,6 @@
         "noNonNullAssertion": "off",
         "useTemplate": "off",
         "useImportType": "off"
-      },
-      "complexity": {
-        "useLiteralKeys": "off",
-        "useArrowFunction": "off"
-      },
-      "suspicious": {
-        // The server install scripts are templates whose ${...} the remote shell expands.
-        "noTemplateCurlyInString": "off"
       }
     }
   },

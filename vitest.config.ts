@@ -1,10 +1,8 @@
 import * as path from 'path';
 import { defineConfig } from 'vitest/config';
 
-// Unit-test harness for the pure logic (session naming, ssh config/destination,
-// server-config policy, ports, tmux command builders). Node environment only —
-// no jsdom, no browser globals. The `vscode` module is not resolvable outside
-// the extension host, so we alias it to a tiny stub the tests share.
+// The unit tests, in Node. The `vscode` module exists only in the extension host, so it is
+// test/mocks/vscode.ts here.
 export default defineConfig({
     test: {
         include: ['test/**/*.test.ts'],

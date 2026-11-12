@@ -1,4 +1,3 @@
-import { isPrimitive, isRecord, isString } from '@zokugun/is-it-type';
 import * as vscode from 'vscode';
 import { inspect } from 'node:util';
 
@@ -51,17 +50,11 @@ function padLeft(s: string, n: number, pad = ' ') {
 }
 
 function stringify(value: unknown): string {
-    if (isPrimitive(value)) {
-        return `${value}`;
-    }
-    else if (value instanceof Error) {
+    if (value instanceof Error) {
         return value.stack || value.message;
     }
-    else if (isRecord(value)) {
-        if (value.success === false && isString(value.message)) {
-            return value.message;
-        }
+    if (typeof value !== 'object' && typeof value !== 'function') {
+        return `${value}`;
     }
-
     return inspect(value, { depth: null, compact: true, breakLength: Infinity });
 }

@@ -14,15 +14,9 @@ allowBuilds:
   # leaves both out (esbuild.mjs) and ssh2 falls back to Node's crypto, so neither is built.
   ssh2: false
   cpu-features: false
-  # jeanp413's fork of simple-socks at one commit, built from source when it is installed (its
-  # prepare compiles it). jeanp413/open-remote-ssh has moved to simple-socks 3.6.0 from the
-  # registry, whose API differs: taking it is an upstream merge of its own.
-  simple-socks@https://codeload.github.com/jeanp413/simple-socks/tar.gz/2ac739301a82d6baff04804ed494436a026acb60: true
-  # simple-socks's runtime, through @babel/runtime-corejs3: its postinstall only prints a banner.
-  core-js-pure: false
 
 # ssh2 1.17.0 still lacks the ECDSA signature fix jeanp413's ssh2 fork carried (patches/ has it,
-# and test/ssh/ssh2.security.test.ts holds the installed tree to it). Keyed by the exact version:
+# and test/ssh2.security.test.ts holds the installed tree to it). Keyed by the exact version:
 # a bump installs unpatched until the patch is made again for it, which that test refuses.
 patchedDependencies:
   ssh2@1.17.0: patches/ssh2@1.17.0.patch
