@@ -10,8 +10,8 @@ import * as net from 'net';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import type { ConnectConfig } from 'ssh2';
-import SSHConnection from '../ssh/sshConnection';
 import type { SpinCli } from './cli';
+import SSHConnection from './connection';
 import { certificateKey, offerOnce, parsePrivateKey, pinnedHostVerifier } from './keys';
 import { refusalOf, SpinRefusal } from './refusal';
 import { readServerStart, serverStartScript, ServerStartError, shCommand } from './serverStart';
@@ -78,8 +78,6 @@ export async function openWorkspace(o: OpenOptions): Promise<OpenedWorkspace> {
         username: WORKSPACE_USER,
         readyTimeout: o.readyTimeoutMs ?? 60_000,
         strictVendor: false,
-        // A tunnel is a session spin opened once: a reconnect is a new resolve, with a new one.
-        reconnect: false,
         hostVerifier: pinnedHostVerifier(pinned) as unknown as ConnectConfig['hostVerifier'],
         authHandler: offerOnce(WORKSPACE_USER, key),
     });

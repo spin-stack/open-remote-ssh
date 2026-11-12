@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach, vi } from 'vitest';
-import Log from '../../src/common/logger';
+import Log from '../src/logger';
 
 // `now()` is private but its only observable effect is the timestamp prefix
 // written into the output channel line — assert through `logLevel`/`info`

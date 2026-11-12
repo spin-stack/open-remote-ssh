@@ -1,186 +1,104 @@
-// Minimal stand-in for the `vscode` module, aliased in via `vitest.config.ts`.
-// The real module only exists inside the extension host, so unit tests that pull
-// in production code (which does `import * as vscode from 'vscode'`) need this
-// stub. Keep it small: add surface here only when a module under test needs it.
+// The `vscode` module for the unit tests, aliased in by vitest.config.ts: the real one exists only
+// in the extension host. It holds what the extension calls, and records what it registers and
+// shows, so a test asserts what a person would see.
 
-export const version = '1.70.2';
+export const version = '1.146.0';
 
 export const env = {
     appRoot: '/vscode/appRoot',
+    openExternal(_uri: unknown): Promise<boolean> {
+        return Promise.resolve(true);
+    },
 };
 
-/**
- * Values a test can seed to simulate user/workspace configuration. Keys are the
- * fully-qualified setting id (e.g. `remote.SSH.serverValidation`). Anything not
- * present resolves to the caller-provided default, mirroring real `vscode`.
- */
+/** Settings a test sets, by their whole id (remote.spin.cliPath); the rest are their defaults. */
 export const configOverrides = new Map<string, unknown>();
 
-/**
- * Per-setting `inspect()` scope values a test can seed to model *where* a user's choice
- * lives — User/Global (`globalValue`; in a remote window this also reflects the remote
- * user settings), Workspace, or folder. Keyed by fully-qualified id; an unseeded id
- * inspects as "nothing set at any scope".
- */
-export const inspectOverrides = new Map<string, { globalValue?: unknown; workspaceValue?: unknown; workspaceFolderValue?: unknown }>();
+/** The resolvers activate registered, by authority. */
+export const resolvers = new Map<string, unknown>();
 
-/**
- * Every `config.update(...)` call, recorded as `(id, value, target)` so a test can assert
- * what — and whether — the extension wrote, and at which scope.
- */
-export const updateCalls: { id: string; value: unknown; target: unknown }[] = [];
-
-/** Mirror of `vscode.ConfigurationTarget` (values match the real enum) — the default-profile
- * write targets `Workspace`; exposed so a test can assert the scope. */
-export enum ConfigurationTarget {
-    Global = 1,
-    Workspace = 2,
-    WorkspaceFolder = 3,
-}
-
-class MockWorkspaceConfiguration {
-    public constructor(private readonly section: string | undefined) {}
-
-    public get<T>(key: string, defaultValue?: T): T | undefined {
-        const id = this.section ? `${this.section}.${key}` : key;
-        return configOverrides.has(id) ? (configOverrides.get(id) as T) : defaultValue;
-    }
-
-    public inspect<T>(key: string): { key: string; globalValue?: T; workspaceValue?: T; workspaceFolderValue?: T } {
-        const id = this.section ? `${this.section}.${key}` : key;
-        const seeded = inspectOverrides.get(id) ?? {};
+export const workspace = {
+    getConfiguration(section?: string) {
         return {
-            key: id,
-            globalValue: seeded.globalValue as T | undefined,
-            workspaceValue: seeded.workspaceValue as T | undefined,
-            workspaceFolderValue: seeded.workspaceFolderValue as T | undefined,
+            get<T>(key: string, defaultValue?: T): T | undefined {
+                const id = section ? `${section}.${key}` : key;
+                return configOverrides.has(id) ? configOverrides.get(id) as T : defaultValue;
+            },
         };
-    }
+    },
+    registerRemoteAuthorityResolver(authority: string, resolver: unknown) {
+        resolvers.set(authority, resolver);
+        return { dispose: () => resolvers.delete(authority) };
+    },
+};
 
-    public update(key: string, value: unknown, target?: unknown): Promise<void> {
-        const id = this.section ? `${this.section}.${key}` : key;
-        updateCalls.push({ id, value, target });
-        return Promise.resolve();
-    }
-}
-
-/**
- * The subset of `vscode.Uri` the remote-location reader inspects (scheme /
- * authority / path only). A test seeds these onto `workspace` to model the open
- * workspace; production derives the remote host + path from them.
- */
-export interface UriLike {
-    scheme: string;
-    authority: string;
-    path: string;
-}
-
-export const workspace: {
-    workspaceFile?: UriLike;
-    workspaceFolders?: { uri: UriLike }[];
-    getConfiguration(section?: string): MockWorkspaceConfiguration;
-} = {
-    // Undefined models "no workspace open"; a test overwrites these per case.
-    // (`workspaceFolders` is `undefined` with nothing open but an EMPTY ARRAY for
-    // an empty-folder workspace — the case that must not crash `activate()`.)
-    workspaceFile: undefined,
-    workspaceFolders: undefined,
-    getConfiguration(section?: string): MockWorkspaceConfiguration {
-        return new MockWorkspaceConfiguration(section);
+export const extensions = {
+    getExtension(_id: string): { extensionPath: string } | undefined {
+        return undefined;
     },
 };
 
 class MockOutputChannel {
-    public readonly name: string;
     public readonly lines: string[] = [];
-
-    public constructor(channelName: string) {
-        this.name = channelName;
-    }
-
-    public append(value: string): void {
-        this.lines.push(value);
-    }
-
+    public constructor(public readonly name: string) { }
     public appendLine(value: string): void {
         this.lines.push(value);
     }
-
-    public clear(): void {
-        this.lines.length = 0;
-    }
-
-    public show(): void {
-        // no-op: nothing to reveal in a headless test.
-    }
-
-    public hide(): void {
-        // no-op.
-    }
-
-    public dispose(): void {
-        // no-op.
-    }
+    public show(): void { }
+    public dispose(): void { }
 }
 
-/**
- * Seedable return value for `window.showWarningMessage` — a test sets this to the
- * button label it wants the simulated user to click (or leaves it `undefined` to
- * model dismiss/cancel). Mirrors the real API returning the chosen item.
- */
-export const messageResponses: { warning: unknown } = { warning: undefined };
+/** What window.showErrorMessage was asked to show: the message, the options, the buttons. */
+export const shownErrors: unknown[][] = [];
 
-/** Messages surfaced via the `window.show*Message` APIs, recorded (message + items)
- * per call so a test can assert what — and whether — a dialog was shown. */
-export const shownMessages: { warning: unknown[][]; information: unknown[][]; error: unknown[][] } = { warning: [], information: [], error: [] };
-
-/** Seedable return value for `window.showInputBox` — a test sets this to the string
- * the simulated user typed (or leaves it `undefined` to model dismiss/Escape). */
-export const inputBoxResponses: { value: string | undefined } = { value: undefined };
-
-/** Every `window.showInputBox(options)` call, recorded so a test can exercise the
- * options' own `validateInput`, matching how the real UI would reject bad input
- * before the value is even returned to the caller. */
-export const shownInputBoxes: { title?: string; validateInput?: (value: string) => string | undefined | null }[] = [];
+export enum ProgressLocation {
+    Notification = 15,
+}
 
 export const window = {
-    createOutputChannel(channelName: string): MockOutputChannel {
-        return new MockOutputChannel(channelName);
+    createOutputChannel(name: string): MockOutputChannel {
+        return new MockOutputChannel(name);
     },
-    showInputBox(options?: { title?: string; validateInput?: (value: string) => string | undefined | null }): Promise<string | undefined> {
-        shownInputBoxes.push(options ?? {});
-        return Promise.resolve(inputBoxResponses.value);
-    },
-    showWarningMessage(message: string, ...items: unknown[]): Promise<unknown> {
-        shownMessages.warning.push([message, ...items]);
-        return Promise.resolve(messageResponses.warning);
-    },
-    showInformationMessage(message: string, ...items: unknown[]): Promise<unknown> {
-        shownMessages.information.push([message, ...items]);
-        return Promise.resolve(undefined);
+    withProgress<T>(_options: unknown, task: () => Promise<T>): Promise<T> {
+        return task();
     },
     showErrorMessage(message: string, ...items: unknown[]): Promise<unknown> {
-        shownMessages.error.push([message, ...items]);
+        shownErrors.push([message, ...items]);
         return Promise.resolve(undefined);
+    },
+    createTerminal(_options: unknown) {
+        return { show() { }, sendText(_text: string) { } };
     },
 };
 
-/** Every `commands.executeCommand(...)` call, recorded as `(command, args)` so a
- * test can assert what a handler asked VS Code to do (e.g. open a new window). */
-export const executedCommands: { command: string; args: unknown[] }[] = [];
+/** The commands activate registered, by id. */
+export const registeredCommands = new Map<string, () => unknown>();
 
 export const commands = {
-    executeCommand(command: string, ...args: unknown[]): Promise<unknown> {
-        executedCommands.push({ command, args });
-        return Promise.resolve(undefined);
+    registerCommand(id: string, handler: () => unknown) {
+        registeredCommands.set(id, handler);
+        return { dispose: () => registeredCommands.delete(id) };
     },
 };
 
-/**
- * Stand-in for `vscode.TerminalProfile` — a value the terminal provider constructs
- * (`new vscode.TerminalProfile(options)`), so it must exist at runtime. It only
- * needs to carry the options through for assertions; the real class does the same.
- */
-export class TerminalProfile {
-    public constructor(public readonly options: unknown) {}
+export const Uri = {
+    parse(value: string) {
+        return { toString: () => value };
+    },
+};
+
+export class ResolvedAuthority {
+    public constructor(public readonly host: string, public readonly port: number, public readonly connectionToken?: string) { }
+}
+
+export class RemoteAuthorityResolverError extends Error {
+    private constructor(message: string, public readonly temporary: boolean) {
+        super(message);
+    }
+    public static NotAvailable(message: string, _handled?: boolean) {
+        return new RemoteAuthorityResolverError(message, false);
+    }
+    public static TemporarilyNotAvailable(message: string) {
+        return new RemoteAuthorityResolverError(message, true);
+    }
 }

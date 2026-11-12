@@ -33,9 +33,9 @@ tasks:
   test:e2e:
     desc: >-
       The Spinbox resolver against spin's e2e stack and the real spin CLI (test/e2e/). Bring the
-      stack up in a spin checkout first - task e2e:up and task e2e:workspaces, which need KVM and
-      sudo -n - then SPIN=<that checkout>. VSCODE_COMMIT is the VS Code commit the stack publishes
-      a server for: spin's versions.yaml vscode pin.
+      stack up in a spin checkout first - task build:cli, task e2e:up and task e2e:workspaces,
+      which need KVM and sudo -n - then SPIN=<that checkout>. VSCODE_COMMIT is a VS Code commit
+      the stack publishes a server for: e2e:up publishes the newest two releases, as its log says.
     requires:
       vars: [SPIN, VSCODE_COMMIT]
     env:

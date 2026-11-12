@@ -26,7 +26,7 @@ import { describe, expect, it } from 'vitest';
 //    fails closed, which the kex layer turns into a clean "Malformed
 //    signature" disconnect.
 
-const repoRoot = path.resolve(__dirname, '../..');
+const repoRoot = path.resolve(__dirname, '..');
 // Anchored at the root manifest so the require resolves from this repo's
 // node_modules — the installed tree, not any vendored or hoisted copy.
 const require = createRequire(path.join(repoRoot, 'package.json'));
@@ -68,7 +68,7 @@ describe('installed ssh2 (real protocol behaviour)', () => {
         const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8')) as {
             dependencies: Record<string, string>;
         };
-        const manifestPin = pkg.dependencies['ssh2'];
+        const manifestPin = pkg.dependencies.ssh2;
         const installedVersion = (require('ssh2/package.json') as { version: string }).version;
         expect(installedVersion, 'node_modules/ssh2 must be reinstalled to match the manifest pin').toBe(manifestPin);
         expect(installedVersion, 'the installed version must be an exact x.y.z release').toMatch(/^\d+\.\d+\.\d+$/);
