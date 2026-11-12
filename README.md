@@ -31,10 +31,10 @@ on the PATH. `Spinbox: Show Connection Log` shows what each open did.
 
 The extension is `spin-stack.spinbox-remote`. It resolves a remote authority through VS Code's
 proposed `resolvers` API, and the Visual Studio Marketplace refuses an extension that uses a
-proposed API, so it is published outside it: each release's VSIX is attached to its
-[GitHub release](https://github.com/spin-stack/open-remote-ssh/releases) and published to
-[Open VSX](https://open-vsx.org/extension/spin-stack/spinbox-remote). `spin vscode install`
-installs it beside the Spinbox extension, held to the digest the spin release pins.
+proposed API, so it is published outside it: each release's VSIX is attached, with its signed
+SHA256SUMS, to its [GitHub release](https://github.com/spin-stack/open-remote-ssh/releases).
+`spin vscode install` installs it beside the Spinbox extension, held to the digest the spin
+release pins.
 `go tool task package` builds `spinbox-remote.vsix` from a checkout, and
 `Extensions: Install from VSIX…` installs it.
 
