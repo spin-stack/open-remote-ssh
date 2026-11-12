@@ -30,6 +30,21 @@ tasks:
     cmds:
       - pnpm test
 
+  test:e2e:
+    desc: >-
+      The Spinbox resolver against spin's e2e stack and the real spin CLI (test/e2e/). Bring the
+      stack up in a spin checkout first - task e2e:up and task e2e:workspaces, which need KVM and
+      sudo -n - then SPIN=<that checkout>. VSCODE_COMMIT is the VS Code commit the stack publishes
+      a server for: spin's versions.yaml vscode pin.
+    requires:
+      vars: [SPIN, VSCODE_COMMIT]
+    env:
+      SPIN_E2E_CLI: '{{.SPIN}}/bin/spin'
+      SPIN_E2E_HOME: '{{.SPIN}}/_output/run/e2e/people/user'
+      SPIN_E2E_COMMIT: '{{.VSCODE_COMMIT}}'
+    cmds:
+      - pnpm test:e2e
+
   package:
     desc: Package the extension into open-remote-ssh.vsix with vsce.
     cmds:
