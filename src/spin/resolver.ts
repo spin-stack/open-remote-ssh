@@ -3,7 +3,6 @@
 // the one thing to do, never left in a log.
 
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type Log from '../logger';
@@ -47,7 +46,7 @@ export class SpinboxResolver implements vscode.RemoteAuthorityResolver, vscode.D
     constructor(private readonly logger: Log) { }
 
     async resolve(authority: string, context: vscode.RemoteAuthorityResolverContext): Promise<vscode.ResolvedAuthority> {
-        const { workspace, host } = parseSpinAuthority(authority);
+        const { workspace } = parseSpinAuthority(authority);
         this.logger.info(`Resolving Spinbox workspace '${workspace}' (attempt #${context.resolveAttempt})`);
         await this.close();
         const commit = editorCommit();
@@ -63,8 +62,8 @@ export class SpinboxResolver implements vscode.RemoteAuthorityResolver, vscode.D
                 location: vscode.ProgressLocation.Notification,
                 title: `Opening Spinbox workspace ${workspace}`,
             }, () => openWorkspace({
-                cli, workspace, host, commit, version: vscode.version, start: true,
-                home: os.homedir(), pid: process.pid, log: line => this.logger.trace(line),
+                cli, workspace, commit, version: vscode.version, start: true,
+                log: line => this.logger.trace(line),
             }));
             this.opened = opened;
             const localPort = await opened.connection.forwardLocal(opened.port);

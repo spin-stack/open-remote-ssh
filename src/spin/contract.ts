@@ -17,6 +17,22 @@ export interface CodeResult {
     not_given?: string;
 }
 
+/**
+ * `spin ssh-session <workspace> -o json` (cmd/cli/cmd/sshsession.go): a session into the
+ * workspace's sshd, after the CLI held the guest's key to its launch's claim.
+ */
+export interface SessionResult {
+    workspace_id: string;
+    /** What `spin tunnel` carries, once: a name, never the relay's credential. */
+    session: string;
+    /** The OpenSSH certificate the workspace signed over the identity's public key, for root. */
+    certificate: string;
+    /** The only key the workspace's sshd may answer with, as an authorized_keys line holds it. */
+    host_key: string;
+    /** The private key the certificate is for, which the CLI chose. */
+    identity: string;
+}
+
 /** The CLI's error envelope (cmd/cli/cmd/errcode.go). */
 export interface CliError {
     code: string;
@@ -107,6 +123,26 @@ export function readCodeAnswer(stdout: string, stderr: string, exitCode: number 
         }
         return { ok: result };
     }
+    return { error: noAnswer('code', stderr, exitCode) };
+}
+
+/** Reads `spin ssh-session`'s answer, as readCodeAnswer reads `spin code`'s. */
+export function readSessionAnswer(stdout: string, stderr: string, exitCode: number | null): Answer<SessionResult> {
+    const last = lastObject(stdout);
+    const error = asCliError(last);
+    if (error) {
+        return { error };
+    }
+    const fields = ['workspace_id', 'session', 'certificate', 'host_key', 'identity'] as const;
+    if (exitCode === 0 && isRecord(last) && fields.every(f => typeof last[f] === 'string' && last[f] !== '')) {
+        const s = last as Record<(typeof fields)[number], string>;
+        return { ok: { workspace_id: s.workspace_id, session: s.session, certificate: s.certificate, host_key: s.host_key, identity: s.identity } };
+    }
+    return { error: noAnswer('ssh-session', stderr, exitCode) };
+}
+
+/** A command that answered neither a result nor an envelope: a CLI this extension does not understand. */
+function noAnswer(command: string, stderr: string, exitCode: number | null): CliError {
     const said = stderr.trim().split(/\r?\n/).pop() || `it exited ${exitCode} and wrote no answer`;
-    return { error: { code: 'internal', action: 'details', message: `spin code: ${said}` } };
+    return { code: 'internal', action: 'details', message: `spin ${command}: ${said}` };
 }

@@ -39,7 +39,7 @@ function cliFor(h: string) {
 
 function open(workspace: string, h = home, start = true) {
     return openWorkspace({
-        cli: cliFor(h), workspace, host: `spin.${workspace}`, commit, start, home: h, pid: process.pid,
+        cli: cliFor(h), workspace, commit, start,
         log: line => console.log(line),
     });
 }
@@ -85,9 +85,9 @@ describe('a Spinbox workspace through the real CLI', () => {
         const o = await open(running);
         opened.push(o);
         expect(await statusLine(o)).toMatch(/^HTTP\/1\.1 200/);
-        // Held to the launch claim's key: ssh-prepare wrote it, and it is the only one.
-        const knownHosts = fs.readFileSync(path.join(home, '.spin', 'ssh', 'hosts', `spin.${running}`, 'known_hosts'), 'utf8');
-        expect(knownHosts).toMatch(new RegExp(`^spin\\.${running} ssh-`, 'm'));
+        // ssh-session opens no file for a caller to read and leaves no session behind once carried.
+        const sessions = path.join(home, '.spin', 'ssh', 'sessions');
+        expect(fs.existsSync(sessions) ? fs.readdirSync(sessions) : []).toEqual([]);
     }, 15 * 60_000);
 
     it('reconnects to the same server', async () => {

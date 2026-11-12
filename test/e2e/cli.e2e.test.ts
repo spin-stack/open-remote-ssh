@@ -27,8 +27,7 @@ async function refusal(start: boolean) {
     }
     try {
         await openWorkspace({
-            cli: new SpinCli(cliPath, env), workspace: 'ws', host: 'spin.ws', commit: COMMIT, start,
-            home, pid: process.pid, log: () => undefined,
+            cli: new SpinCli(cliPath, env), workspace: 'ws', commit: COMMIT, start, log: () => undefined,
         });
     } catch (e) {
         if (e instanceof SpinRefusal) {

@@ -14,9 +14,10 @@ workspace uses.
 - `spin code <workspace> --no-open --vscode-commit <this editor's commit> --start` has the
   workspace running with the VS Code server for this commit on the extension disk the
   installation publishes;
-- `spin ssh-prepare` opens a session, checking the workspace's launch claim and writing the
-  host key it names; the connection is carried by `spin ssh-proxy`, accepts that host key only,
-  and logs in with the certificate the workspace signed for this machine's key;
+- `spin ssh-session -o json` opens a session, checking the workspace's launch claim, and answers
+  the host key it names, the certificate the workspace signed for this machine's key and the
+  session's name; the connection is carried by `spin tunnel <session>`, accepts that host key
+  only, and logs in with that certificate;
 - the server is started from the extension disk, and **never downloaded**: a workspace
   without it is refused with what to do;
 - VS Code reaches the server through a port on this machine's loopback;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readCodeAnswer } from '../../src/spin/contract';
+import { readCodeAnswer, readSessionAnswer } from '../../src/spin/contract';
 
 const result = { workspace_id: 'w1', host: 'spin.ws', folder_uri: 'vscode-remote://ssh-remote+spin.ws/root', server: 'carried' };
 
@@ -52,5 +52,31 @@ describe('readCodeAnswer', () => {
         ['a server state it does not know', JSON.stringify({ ...result, server: 'elsewhere' }), '', 0, 'spin code: it exited 0 and wrote no answer'],
     ])('reads %s as an internal error with what the CLI said', (_name, stdout, stderr, exit, message) => {
         expect(readCodeAnswer(stdout, stderr, exit)).toEqual({ error: { code: 'internal', action: 'details', message } });
+    });
+});
+
+const session = {
+    workspace_id: 'w1', session: 'ORWU6TGORHKIKCHPMWRLHNZSR4', identity: '/home/me/.ssh/id_ed25519',
+    certificate: 'ssh-ed25519-cert-v01@openssh.com AAAAcert', host_key: 'ssh-ed25519 AAAAhost',
+};
+
+describe('readSessionAnswer', () => {
+    // As spin ssh-session writes it: one indented document.
+    it('takes the session', () => {
+        expect(readSessionAnswer(`${JSON.stringify(session, null, 2)}\n`, 'Opening a session into ws...', 0)).toEqual({ ok: session });
+    });
+
+    it('reads a refusal as the envelope the CLI wrote', () => {
+        const envelope = { error: { code: 'workspace_stopped', action: 'start', workspace_id: 'w1', message: 'workspace ws is stopped' } };
+        expect(readSessionAnswer(JSON.stringify(envelope, null, 2), 'Error: ...', 1)).toEqual({ error: envelope.error });
+    });
+
+    it.each([
+        ['no answer at all', '', 'Error: unknown command "ssh-session"', 1, 'spin ssh-session: Error: unknown command "ssh-session"'],
+        ['a session with an exit status', JSON.stringify(session), '', 1, 'spin ssh-session: it exited 1 and wrote no answer'],
+        ['a session with no host key', JSON.stringify({ ...session, host_key: '' }), '', 0, 'spin ssh-session: it exited 0 and wrote no answer'],
+        ['a session with no certificate', JSON.stringify({ ...session, certificate: undefined }), '', 0, 'spin ssh-session: it exited 0 and wrote no answer'],
+    ])('reads %s as an internal error with what the CLI said', (_name, stdout, stderr, exit, message) => {
+        expect(readSessionAnswer(stdout, stderr, exit)).toEqual({ error: { code: 'internal', action: 'details', message } });
     });
 });

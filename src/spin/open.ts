@@ -1,33 +1,24 @@
 // Opens a Spinbox workspace for VS Code, with no VS Code in it so the e2e harness drives it as
 // the resolver does: the workspace running with this commit's server (`spin code`), a session
-// opened by the CLI (`spin ssh-prepare`), ssh2 over the CLI's tunnel (`spin ssh-proxy`) held to
-// the launch claim's host key and authenticated by the workspace's certificate, and the server
+// opened by the CLI (`spin ssh-session`), ssh2 over the CLI's tunnel (`spin tunnel`) held to the
+// launch claim's host key and authenticated by the workspace's certificate, and the server
 // started from the extension disk. Every refusal is a SpinRefusal saying what to do.
 
 import * as crypto from 'crypto';
 import * as fs from 'fs';
-import * as net from 'net';
-import * as path from 'path';
-import { spawn } from 'child_process';
 import type { ConnectConfig } from 'ssh2';
 import type { SpinCli } from './cli';
 import SSHConnection from './connection';
-import { certificateKey, offerOnce, parsePrivateKey, pinnedHostVerifier } from './keys';
+import { certificateKey, offerOnce, parseHostKey, parsePrivateKey, pinnedHostVerifier } from './keys';
 import { refusalOf, SpinRefusal } from './refusal';
 import { readServerStart, serverStartScript, ServerStartError, shCommand } from './serverStart';
-import { hostDir, readCertificate, readIdentity, readLeft, readPinnedHostKey } from './session';
 
 export interface OpenOptions {
     cli: SpinCli;
     workspace: string;
-    host: string;
     commit: string;
     version?: string;
     start: boolean;
-    /** The home the CLI keeps ~/.spin in: the extension host's. */
-    home: string;
-    /** The process ssh-prepare and ssh-proxy are children of, which keys their session. */
-    pid: number;
     log: (line: string) => void;
     readyTimeoutMs?: number;
 }
@@ -58,23 +49,16 @@ export async function openWorkspace(o: OpenOptions): Promise<OpenedWorkspace> {
         });
     }
 
-    const identity = readIdentity(o.home);
-    await releaseSharedConnection(o.host, o.log);
-    await o.cli.prepare(o.host, identity);
-    const dir = hostDir(o.home, o.host);
-    const left = readLeft(dir, o.pid);
-    if (!left) {
-        throw new SpinRefusal({ code: 'no_session', message: `spin ssh-prepare opened no session into ${o.workspace}`, temporary: true });
+    o.log(`spin ssh-session ${o.workspace}`);
+    const session = await o.cli.session(o.workspace);
+    if ('error' in session) {
+        throw new SpinRefusal(refusalOf(session.error));
     }
-    if (!left.session) {
-        // The fix is the CLI's when it has one for what failed, and empty when it has none.
-        throw new SpinRefusal({ code: 'refused', message: left.fix ? `${left.fix} (${left.failure})` : left.failure, temporary: false });
-    }
-
-    const pinned = readPinnedHostKey(dir, o.host);
-    const key = certificateKey(parsePrivateKey(fs.readFileSync(identity), identity), readCertificate(dir));
+    const { identity, certificate, host_key: hostKey } = session.ok;
+    const pinned = parseHostKey(hostKey);
+    const key = certificateKey(parsePrivateKey(fs.readFileSync(identity), identity), certificate);
     const connection = new SSHConnection({
-        sock: o.cli.proxy(o.host, line => o.log(`spin ssh-proxy: ${line}`)),
+        sock: o.cli.tunnel(session.ok.session, line => o.log(`spin tunnel: ${line}`)),
         username: WORKSPACE_USER,
         readyTimeout: o.readyTimeoutMs ?? 60_000,
         strictVendor: false,
@@ -94,28 +78,4 @@ export async function openWorkspace(o: OpenOptions): Promise<OpenedWorkspace> {
         }
         throw e;
     }
-}
-
-/**
- * ssh-prepare opens nothing when an OpenSSH connection to host is open to share - `spin code`'s
- * own check leaves one for ten minutes - since ssh would carry the next connection on it, and
- * this one is not ssh's. Told to stop, that connection takes no more sharers and keeps the
- * sessions it carries.
- */
-async function releaseSharedConnection(host: string, log: (line: string) => void): Promise<void> {
-    if (process.platform === 'win32' || typeof process.getuid !== 'function') {
-        return;
-    }
-    const socket = path.join('/tmp', `spin-${process.getuid()}`, host);
-    const answers = await new Promise<boolean>(resolve => {
-        const c = net.connect(socket, () => { c.destroy(); resolve(true); }).on('error', () => resolve(false));
-    });
-    if (!answers) {
-        return;
-    }
-    log(`ssh -O stop: ${socket} would carry this connection on ssh's`);
-    await new Promise<void>(resolve => {
-        spawn('ssh', ['-O', 'stop', '-o', `ControlPath=${socket}`, host], { stdio: 'ignore' })
-            .on('error', () => resolve()).on('close', () => resolve());
-    });
 }

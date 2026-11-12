@@ -1,4 +1,4 @@
-// The ssh2 connection to a workspace's sshd, over the stream `spin ssh-proxy` carries, and the
+// The ssh2 connection to a workspace's sshd, over the stream `spin tunnel` carries, and the
 // local port VS Code reaches the workspace's server through. It began as
 // sanketbajoria/ssh2-promise's SSHConnection, by way of jeanp413/open-remote-ssh.
 
