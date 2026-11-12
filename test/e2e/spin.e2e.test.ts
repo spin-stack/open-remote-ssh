@@ -25,8 +25,16 @@ const commit = process.env.SPIN_E2E_COMMIT ?? '';
 const running = process.env.SPIN_E2E_RUNNING ?? 'e2e-running';
 const stopped = process.env.SPIN_E2E_STOPPED ?? 'e2e-stopped';
 
+// OpenSSH reads the config of the passwd entry's home, not $HOME's, and a fixture person's home
+// is not that: the ssh `spin code` checks the workspace with is told the person's config, as it
+// would find it on a machine of theirs.
+const sshShim = fs.mkdtempSync(path.join(os.tmpdir(), 'spin-e2e-ssh-'));
+fs.writeFileSync(path.join(sshShim, 'ssh'), '#!/bin/sh\nexec /usr/bin/ssh -F "$HOME/.ssh/config" "$@"\n', { mode: 0o755 });
+
 function cliFor(h: string) {
-    return new SpinCli(cliPath, { ...process.env, HOME: h, SSL_CERT_DIR: `/etc/ssl/certs:${path.join(h, '.trust')}` });
+    return new SpinCli(cliPath, {
+        ...process.env, HOME: h, SSL_CERT_DIR: `/etc/ssl/certs:${path.join(h, '.trust')}`, PATH: `${sshShim}:${process.env.PATH}`,
+    });
 }
 
 function open(workspace: string, h = home, start = true) {
@@ -64,6 +72,7 @@ async function statusLine(o: OpenedWorkspace): Promise<string> {
 const opened: OpenedWorkspace[] = [];
 afterAll(async () => {
     await Promise.all(opened.map(o => o.connection.close().catch(() => undefined)));
+    fs.rmSync(sshShim, { recursive: true, force: true });
 });
 
 describe('a Spinbox workspace through the real CLI', () => {
