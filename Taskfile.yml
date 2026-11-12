@@ -7,7 +7,7 @@ version: '3'
 vars:
   # The release a publish is for: the tag a workflow runs on, or TAG=v1.2.3 on the command line.
   TAG: '{{.GITHUB_REF_NAME}}'
-  # Where publish:github lays out the release's files, which publish:openvsx publishes.
+  # Where publish:github lays out the release's files.
   RELEASE: build/release
 
 tasks:
@@ -59,7 +59,7 @@ tasks:
 
   # The Marketplace refuses an extension that uses a proposed API (resolvers), so a release is
   # the GitHub release, which `spin vscode install` downloads and holds to the digest spin's
-  # versions.yaml pins, and Open VSX.
+  # versions.yaml pins.
   publish:check:
     desc: Fail before anything is built when the tag is not v and package.json's version - a VSIX carries the version it was packaged with, never the tag's.
     env:
@@ -98,18 +98,6 @@ tasks:
       # Created with its files at once, so no release is ever listed without them.
       - gh release view {{.TAG}} >/dev/null 2>&1 || gh release create {{.TAG}} --verify-tag --title {{.TAG}} --generate-notes {{.RELEASE}}/*
       - gh release upload {{.TAG}} --clobber {{.RELEASE}}/*
-
-  publish:openvsx:
-    desc: Publish the VSIX publish:github laid out to Open VSX, with the token OVSX_PAT of the namespace spin-stack.
-    silent: true
-    cmds:
-      - cmd: |
-          if [ -z "${OVSX_PAT:-}" ]; then
-            echo "::error::publish:openvsx: no OVSX_PAT. Open VSX was not published to; the GitHub release was. Create the namespace spin-stack on open-vsx.org and a token for it, set it as the repository secret OVSX_PAT, and run the Publish workflow again." >&2
-            exit 1
-          fi
-      # --skip-duplicate: a run that failed after Open VSX took it is run again whole.
-      - pnpm exec ovsx publish --skip-duplicate --packagePath {{.RELEASE}}/*.vsix
 
   gate:
     desc: What holds the repository's shape - every install through the firewall, and every workflow step a task.

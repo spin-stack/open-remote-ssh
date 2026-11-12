@@ -1,11 +1,9 @@
 name: Publish
 
 # On a tag v*, a step a task: the VSIX packaged once and attached to the tag's GitHub release with
-# SHA256SUMS signed by this workflow, then published to Open VSX. The Marketplace refuses an
-# extension that uses a proposed API, so these two are where Spinbox Remote is released, and
-# `spin vscode install` downloads the GitHub release's VSIX, held to the digest spin pins. The
-# release comes first: it exists, and is installable, whether or not Open VSX is set up yet or
-# answers. OVSX_PAT is the token of the Open VSX namespace spin-stack.
+# SHA256SUMS signed by this workflow. The Marketplace refuses an extension that uses a proposed
+# API, so the GitHub release is where Spinbox Remote is released, and `spin vscode install`
+# downloads its VSIX, held to the digest spin pins.
 
 on:
   push:
@@ -51,6 +49,3 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-      - run: go tool task publish:openvsx
-        env:
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}

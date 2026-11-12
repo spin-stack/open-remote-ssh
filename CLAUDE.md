@@ -11,8 +11,8 @@ what opening a Spinbox workspace uses: no `ssh-remote` resolver, ~/.ssh/config, 
 prompts, server download, tmux terminals or clipboard bridge. The editor it targets is
 Microsoft's VS Code, its current stable release (`engines.vscode`) and no older one: the server a
 Spinbox installation publishes is Microsoft's. The Marketplace refuses an extension using a
-proposed API, so a release is a VSIX on the GitHub release and on Open VSX (`.github/workflows/publish.yml`),
-which `spin vscode install` installs.
+proposed API, so a release is a signed VSIX on the GitHub release
+(`.github/workflows/publish.yml`), which `spin vscode install` installs.
 
 A feature lands here when the Spinbox path calls it, with a test that reaches it through that
 path.
