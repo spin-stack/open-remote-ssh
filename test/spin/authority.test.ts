@@ -3,10 +3,10 @@ import { parseSpinAuthority } from '../../src/spin/authority';
 
 describe('parseSpinAuthority', () => {
     it.each([
-        ['spin+my-ws', 'my-ws', 'spin.my-ws'],
-        ['spin+0192f3a4_b', '0192f3a4_b', 'spin.0192f3a4_b'],
-    ])('%s opens workspace %s as host %s', (authority, workspace, host) => {
-        expect(parseSpinAuthority(authority)).toEqual({ workspace, host });
+        ['spin+my-ws', 'my-ws'],
+        ['spin+0192f3a4_b', '0192f3a4_b'],
+    ])('%s opens workspace %s', (authority, workspace) => {
+        expect(parseSpinAuthority(authority)).toEqual({ workspace });
     });
 
     it.each([

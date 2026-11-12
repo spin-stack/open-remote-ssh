@@ -23,13 +23,12 @@ path.
 |------|----------------|
 | `src/extension.ts` | Activation: the resolver registered for `spin`, the show-log command. |
 | `src/logger.ts` | The output channel. |
-| `src/spin/authority.ts` | `spin+<workspace>` parsed, and the ssh host the CLI knows it as. |
+| `src/spin/authority.ts` | `spin+<workspace>` parsed. |
 | `src/spin/resolver.ts` | The VS Code resolver: this editor's commit, progress, the local port, a refusal shown with its action. |
-| `src/spin/open.ts` | The flow, with no VS Code in it so `test/e2e` drives it: `spin code`, `spin ssh-prepare`, ssh2 over `spin ssh-proxy`, the server started. |
+| `src/spin/open.ts` | The flow, with no VS Code in it so `test/e2e` drives it: `spin code`, `spin ssh-session`, ssh2 over `spin tunnel`, the server started. |
 | `src/spin/cli.ts` | The spin CLI, the only client of an installation. |
 | `src/spin/contract.ts` | The CLI's JSON answers. |
-| `src/spin/session.ts` | What ssh-prepare leaves in `~/.spin/ssh/hosts/<host>/`. |
-| `src/spin/keys.ts` | The workspace's certificate as an ssh2 key; the host key pinned to the launch claim's. |
+| `src/spin/keys.ts` | The workspace's certificate as an ssh2 key; the host key pinned to the launch claim's, as ssh-session answers it. |
 | `src/spin/connection.ts` | The ssh2 connection: exec, a channel, the loopback port to the server. |
 | `src/spin/serverStart.ts` | The server from the extension disk, never downloaded, and its answer read. |
 | `src/spin/refusal.ts` | What a person is shown. |

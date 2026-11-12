@@ -11,8 +11,8 @@ import { activate } from '../../src/extension';
 import { configOverrides, env, ResolvedAuthority, RemoteAuthorityResolverError, resolvers, shownErrors } from '../mocks/vscode';
 
 // `spin+<workspace>` from the extension's activation to a request answered by the workspace's
-// server, with the CLI and the workspace standing in: a spin that answers `code`, leaves what
-// `ssh-prepare` leaves, and carries `ssh-proxy` to an ssh2 server that admits only the
+// server, with the CLI and the workspace standing in: a spin that answers `code` and
+// `ssh-session`, and carries `tunnel` to an ssh2 server that admits only the
 // workspace's certificate and answers the server start as the workspace would. What OpenSSH
 // makes of the certificate is keys.sshd.test.ts's, and what the real CLI and workspace do is
 // test/e2e's.
@@ -20,6 +20,7 @@ import { configOverrides, env, ResolvedAuthority, RemoteAuthorityResolverError, 
 const COMMIT = '69047191fc427f2f92828279aae1d90d8eeda7ab';
 const TOKEN = 'the-servers-token';
 const CERT_TYPE = 'ssh-ed25519-cert-v01@openssh.com';
+const SESSION = 'ORWU6TGORHKIKCHPMWRLHNZSR4';
 
 let dir: string;
 let home: string;
@@ -37,36 +38,38 @@ function listen(server: net.Server): Promise<number> {
     return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve((server.address() as net.AddressInfo).port)));
 }
 
-// The spin CLI as the resolver runs it: what it was asked is logged in calls, what `code`
-// answers is code.json.
+// The spin CLI as the resolver runs it: what it was asked is logged in calls, what `code` and
+// `ssh-session` answer is code.json and session.json.
 const FAKE_SPIN = `#!/usr/bin/env node
 const fs = require('fs'), net = require('net'), path = require('path');
 const fixture = process.env.FAKE_SPIN_FIXTURE;
 const [cmd, ...args] = process.argv.slice(2);
 fs.appendFileSync(path.join(fixture, 'calls'), JSON.stringify([cmd, ...args]) + '\\n');
-if (cmd === 'code') {
-    const a = JSON.parse(fs.readFileSync(path.join(fixture, 'code.json'), 'utf8'));
-    process.stdout.write(JSON.stringify(a.answer) + '\\n');
+if (cmd === 'code' || cmd === 'ssh-session') {
+    const a = JSON.parse(fs.readFileSync(path.join(fixture, cmd === 'code' ? 'code.json' : 'session.json'), 'utf8'));
+    process.stdout.write(JSON.stringify(a.answer, null, 2) + '\\n');
     process.exit(a.exit);
-} else if (cmd === 'ssh-prepare') {
-    const host = args[args.length - 1];
-    const d = path.join(process.env.HOME, '.spin', 'ssh', 'hosts', host);
-    fs.mkdirSync(d, { recursive: true });
-    const key = fs.readFileSync(path.join(fixture, 'host.pub'), 'utf8').split(' ').slice(0, 2).join(' ');
-    fs.writeFileSync(path.join(d, 'known_hosts'), '# spin: workspace\\n' + host + ' ' + key + '\\n');
-    fs.copyFileSync(path.join(fixture, 'user-cert.pub'), path.join(d, 'id-cert.pub'));
-    fs.writeFileSync(path.join(d, process.ppid + '.tunnel'), '');
-} else if (cmd === 'ssh-proxy') {
+} else if (cmd === 'tunnel' && args[0] === '${SESSION}') {
     const s = net.connect(Number(fs.readFileSync(path.join(fixture, 'port'), 'utf8')), '127.0.0.1');
     process.stdin.pipe(s);
     s.pipe(process.stdout);
     s.on('close', () => process.exit(0));
+} else {
+    process.stderr.write('no session ' + args[0] + '\\n');
+    process.exit(1);
 }
 `;
 
 function answerCode(answer: unknown, exit = 0) {
     fs.writeFileSync(path.join(fixture, 'code.json'), JSON.stringify({ answer, exit }));
 }
+
+function answerSession(answer: unknown, exit = 0) {
+    fs.writeFileSync(path.join(fixture, 'session.json'), JSON.stringify({ answer, exit }));
+}
+
+/** ssh-session's answer when it opened a session: the fixture's certificate, host key and identity. */
+let opensSession: () => void;
 
 function calls(): string[][] {
     return fs.readFileSync(path.join(fixture, 'calls'), 'utf8').trim().split('\n').map(l => JSON.parse(l) as string[]);
@@ -77,7 +80,6 @@ beforeAll(async () => {
     home = path.join(dir, 'home');
     fixture = path.join(dir, 'fixture');
     fs.mkdirSync(path.join(home, '.ssh'), { recursive: true });
-    fs.mkdirSync(path.join(home, '.spin', 'ssh'), { recursive: true });
     fs.mkdirSync(fixture);
     const identity = path.join(home, '.ssh', 'id_ed25519');
     keygen('-t', 'ed25519', '-N', '', '-f', identity);
@@ -85,7 +87,11 @@ beforeAll(async () => {
     keygen('-t', 'ed25519', '-N', '', '-f', path.join(fixture, 'host'));
     keygen('-s', path.join(fixture, 'ca'), '-I', 'spin-test', '-n', 'root', '-V', '+5m', `${identity}.pub`);
     fs.renameSync(`${identity}-cert.pub`, path.join(fixture, 'user-cert.pub'));
-    fs.writeFileSync(path.join(home, '.spin', 'ssh', 'config'), `Match host spin.*\n  IdentityFile "${identity}"\n`);
+    opensSession = () => answerSession({
+        workspace_id: 'w1', session: SESSION, identity,
+        certificate: fs.readFileSync(path.join(fixture, 'user-cert.pub'), 'utf8').trim(),
+        host_key: fs.readFileSync(path.join(fixture, 'host.pub'), 'utf8').trim().split(' ').slice(0, 2).join(' '),
+    });
     const certBlob = Buffer.from(fs.readFileSync(path.join(fixture, 'user-cert.pub'), 'utf8').split(' ')[1], 'base64');
 
     codeServer = http.createServer((req, res) => {
@@ -173,25 +179,45 @@ function get(port: number, urlPath: string): Promise<{ status?: number; body: st
 describe('spin+<workspace>', () => {
     it('resolves to a local port that reaches the workspace\'s server, with its token', async () => {
         answerCode({ workspace_id: 'w1', host: 'spin.unit-ws', folder_uri: 'vscode-remote://spin+unit-ws/root', server: 'carried' });
+        opensSession();
         const resolved = await resolve('spin+unit-ws');
 
         expect(resolved.host).toBe('127.0.0.1');
         expect(resolved.connectionToken).toBe(TOKEN);
         expect(await get(resolved.port, `/version?tkn=${TOKEN}`)).toEqual({ status: 200, body: COMMIT });
-        // The workspace was asked for this editor's server, and the CLI opened the session.
-        expect(calls().map(c => c[0])).toEqual(['code', 'ssh-prepare', 'ssh-proxy']);
-        expect(calls()[0]).toEqual(['code', 'unit-ws', '--no-open', '--vscode-commit', COMMIT, '-o', 'json', '--vscode-version', '1.146.0', '--start']);
+        // The workspace was asked for this editor's server, the CLI opened the session, and the
+        // tunnel carried it by its name: no credential on a command line, no file read.
+        expect(calls()).toEqual([
+            ['code', 'unit-ws', '--no-open', '--vscode-commit', COMMIT, '-o', 'json', '--vscode-version', '1.146.0', '--start'],
+            ['ssh-session', 'unit-ws', '-o', 'json'],
+            ['tunnel', SESSION],
+        ]);
         expect(said[said.length - 1]).toContain(`/run/spin-stack/vsc-${COMMIT.slice(0, 12)}/servers/${COMMIT}/server/bin/code-server`);
     }, 30_000);
 
-    it('shows a refusal with its one action, and tells VS Code not to retry it', async () => {
-        answerCode({ error: { code: 'key_not_enrolled', message: 'this machine\'s key is not enrolled', action: 'enroll', url: 'https://app.example/settings/keys' } }, 1);
+    it('refuses a workspace that answers with another host key than the session\'s', async () => {
+        answerCode({ workspace_id: 'w1', host: 'spin.unit-ws', folder_uri: 'vscode-remote://spin+unit-ws/root', server: 'carried' });
+        opensSession();
+        const answer = JSON.parse(fs.readFileSync(path.join(fixture, 'session.json'), 'utf8')) as { answer: Record<string, string> };
+        answerSession({ ...answer.answer, host_key: fs.readFileSync(path.join(fixture, 'ca.pub'), 'utf8').trim().split(' ').slice(0, 2).join(' ') });
+
+        await expect(resolve('spin+unit-ws')).rejects.toBeInstanceOf(RemoteAuthorityResolverError);
+        expect(calls().map(c => c[0])).toEqual(['code', 'ssh-session', 'tunnel']);
+    }, 30_000);
+
+    it.each([
+        ['spin code', 'code', ['code']],
+        ['spin ssh-session', 'session', ['code', 'ssh-session']],
+    ])('shows a refusal of %s with its one action, and tells VS Code not to retry it', async (_name, refuses, ran) => {
+        const refusal = { error: { code: 'key_not_enrolled', message: 'this machine\'s key is not enrolled', action: 'add_key', url: 'https://app.example/settings/keys' } };
+        answerCode(refuses === 'code' ? refusal : { workspace_id: 'w1', host: 'spin.unit-ws', folder_uri: 'vscode-remote://spin+unit-ws/root', server: 'carried' }, refuses === 'code' ? 1 : 0);
+        answerSession(refusal, 1);
         const failed = await resolve('spin+unit-ws').catch((e: unknown) => e);
 
         expect(failed).toBeInstanceOf(RemoteAuthorityResolverError);
         expect((failed as RemoteAuthorityResolverError).temporary).toBe(false);
         expect(shownErrors).toEqual([['Spinbox could not open unit-ws: this machine\'s key is not enrolled', { modal: true }, 'Add This Machine\'s Key']]);
-        expect(calls().map(c => c[0])).toEqual(['code']);
+        expect(calls().map(c => c[0])).toEqual(ran);
     }, 30_000);
 
     it('refuses an authority that is not a workspace before running anything', async () => {

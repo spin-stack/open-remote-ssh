@@ -5,8 +5,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { Client, type ConnectConfig } from 'ssh2';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { certificateKey, offerOnce, parsePrivateKey, pinnedHostVerifier } from '../../src/spin/keys';
-import { readPinnedHostKey } from '../../src/spin/session';
+import { certificateKey, offerOnce, parseHostKey, parsePrivateKey, pinnedHostVerifier } from '../../src/spin/keys';
 
 // Against a real OpenSSH sshd set up as a workspace's is (spin's internal/sshauth):
 // AuthorizedKeysFile none, so only a certificate a trusted CA signed lets anyone in. ssh-keygen
@@ -110,8 +109,7 @@ function run(config: ConnectConfig): Promise<string> {
 }
 
 function pinnedHost() {
-    fs.writeFileSync(path.join(dir, 'known_hosts'), `# spin: workspace w1\nspin.ws ${fs.readFileSync(path.join(dir, 'host.pub'), 'utf8').trim().split(' ').slice(0, 2).join(' ')}\n`);
-    return readPinnedHostKey(dir, 'spin.ws');
+    return parseHostKey(fs.readFileSync(path.join(dir, 'host.pub'), 'utf8').trim().split(' ').slice(0, 2).join(' '));
 }
 
 function identity(name: string) {

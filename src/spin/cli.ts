@@ -1,11 +1,11 @@
 // The spin CLI, the resolver's only client of a Spinbox installation: `spin code` to have the
-// workspace running with the server for this editor's commit, `spin ssh-prepare` to open a
-// session into it, and `spin ssh-proxy` to carry the connection. The CLI keeps the credentials;
+// workspace running with the server for this editor's commit, `spin ssh-session` to open a
+// session into it, and `spin tunnel` to carry the connection. The CLI keeps the credentials;
 // this extension holds none.
 
 import { spawn } from 'child_process';
 import { Duplex } from 'stream';
-import { type Answer, type CodeResult, readCodeAnswer } from './contract';
+import { type Answer, type CodeResult, readCodeAnswer, readSessionAnswer, type SessionResult } from './contract';
 
 export interface CodeOptions {
     workspace: string;
@@ -67,17 +67,18 @@ export class SpinCli {
     }
 
     /**
-     * Opens a session into host for this process to carry: it checks the workspace's launch
-     * claim and writes the host key it names, the certificate, and the session or why there is
-     * none (session.ts reads them). It always exits 0: what failed is in what it left.
+     * A session into the workspace's sshd, after the CLI held the guest's key to its launch's
+     * claim: the session to carry, the certificate, that key, and the identity the CLI chose.
      */
-    async prepare(host: string, identity: string): Promise<void> {
-        await this.run(['ssh-prepare', '--identity', identity, host], 3 * 60_000);
+    async session(workspace: string): Promise<Answer<SessionResult>> {
+        // The CLI bounds asking a host for a session at 45 s, and waits for a start under way.
+        const ran = await this.run(['ssh-session', workspace, '-o', 'json'], 3 * 60_000);
+        return readSessionAnswer(ran.stdout, ran.stderr, ran.exitCode);
     }
 
-    /** The connection to host's sshd, carried by `spin ssh-proxy` through the session prepare opened. */
-    proxy(host: string, onStderr: (line: string) => void): Duplex {
-        const child = spawn(this.binary, ['ssh-proxy', host], { env: this.env, stdio: ['pipe', 'pipe', 'pipe'] });
+    /** The connection to the workspace's sshd, carried by `spin tunnel` over the session ssh-session opened. */
+    tunnel(session: string, onStderr: (line: string) => void): Duplex {
+        const child = spawn(this.binary, ['tunnel', session], { env: this.env, stdio: ['pipe', 'pipe', 'pipe'] });
         child.stderr.on('data', (d: Buffer) => d.toString().split(/\r?\n/).filter(Boolean).forEach(onStderr));
         const stream = Duplex.from({ readable: child.stdout, writable: child.stdin });
         // The proxy outlives nothing it carries: closing the stream ends it, and its end the stream.
