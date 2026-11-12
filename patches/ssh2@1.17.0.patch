@@ -1,0 +1,47 @@
+diff --git a/lib/protocol/utils.js b/lib/protocol/utils.js
+index 26f4cab6de85953ccc7f9e7af35c4fa0905e8ca0..5c0ba76ab4cc1b1789115ec83c956ebfe96ac61b 100644
+--- a/lib/protocol/utils.js
++++ b/lib/protocol/utils.js
+@@ -158,6 +158,25 @@ function writeUInt32BE(buf, value, offset) {
+   return offset;
+ }
+ 
++// jeanp413/ssh2@a169f62's "Fix sigSSHToASN1": a big-endian integer as a DER
++// INTEGER - a zero in front when the high bit is set, and no zeros that do not
++// carry the sign.
++function convertToMpint(buf) {
++  const prependZeroCount = buf[0] & 0x80 ? 1 : 0;
++  let skipZeroCount = 0;
++  for (let i = 0; i < buf.length - 1 && buf[i] === 0; i++) {
++    if ((buf[i + 1] & 0x80) === 0)
++      skipZeroCount++;
++  }
++  const newBuf = Buffer.allocUnsafe(
++    buf.length + prependZeroCount - skipZeroCount
++  );
++  buf.copy(newBuf, prependZeroCount, skipZeroCount, buf.length);
++  if (prependZeroCount)
++    newBuf[0] = 0;
++  return newBuf;
++}
++
+ const utilBufferParser = makeBufferParser();
+ 
+ module.exports = {
+@@ -270,10 +289,14 @@ module.exports = {
+         if (r === undefined || s === undefined)
+           return;
+ 
++        // OpenSSL wants minimal, positive DER INTEGERs: without this, an
++        // ECDSA host key fails verification whenever the high bit of r or s
++        // is set. After the check above, so a truncated signature returns
++        // undefined rather than throwing.
+         const asnWriter = new Ber.Writer();
+         asnWriter.startSequence();
+-        asnWriter.writeBuffer(r, Ber.Integer);
+-        asnWriter.writeBuffer(s, Ber.Integer);
++        asnWriter.writeBuffer(convertToMpint(r), Ber.Integer);
++        asnWriter.writeBuffer(convertToMpint(s), Ber.Integer);
+         asnWriter.endSequence();
+         return asnWriter.buffer;
+       }

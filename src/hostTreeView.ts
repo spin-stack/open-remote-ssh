@@ -54,7 +54,7 @@ export function rootHostList(configured: readonly string[], remembered: readonly
 
 export class HostTreeDataProvider extends Disposable implements vscode.TreeDataProvider<DataTreeItem> {
 
-    private readonly _onDidChangeTreeData = this._register(new vscode.EventEmitter<DataTreeItem | DataTreeItem[] | void>());
+    private readonly _onDidChangeTreeData = this._register(new vscode.EventEmitter<DataTreeItem | DataTreeItem[] | undefined>());
     public readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
     constructor(
@@ -113,7 +113,7 @@ export class HostTreeDataProvider extends Disposable implements vscode.TreeDataP
     }
 
     private refresh() {
-        this._onDidChangeTreeData.fire();
+        this._onDidChangeTreeData.fire(undefined);
     }
 
     private async deleteHostLocation(element: HostLocationItem) {

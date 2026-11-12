@@ -26,7 +26,7 @@ export default class Log {
     public logLevel(level: LogLevel, message: string, data?: unknown): void {
         this.output.appendLine(`[${level}  - ${this.now()}] ${message}`);
         if (data) {
-            this.output.appendLine(toString(data));
+            this.output.appendLine(stringify(data));
         }
     }
 
@@ -50,7 +50,7 @@ function padLeft(s: string, n: number, pad = ' ') {
     return pad.repeat(Math.max(0, n - s.length)) + s;
 }
 
-function toString(value: unknown): string {
+function stringify(value: unknown): string {
     if (isPrimitive(value)) {
         return `${value}`;
     }

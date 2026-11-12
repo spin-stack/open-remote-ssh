@@ -1,10 +1,6 @@
 {
-	"search.exclude": {
-		"package-lock.json": true,
-		"lib/**": true,
-		"out/**": true,
-	},
-	"taskExplorer.exclude": [
-		".husky",
-	],
+  "search.exclude": {
+    "pnpm-lock.yaml": true,
+    "lib/**": true
+  }
 }

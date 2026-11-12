@@ -6,12 +6,11 @@ import { describe, expect, it } from 'vitest';
 // Real-protocol behaviour of the INSTALLED ssh2 tree, pulled in through
 // createRequire (ssh2 is CommonJS and its deep internals have no ESM entry) —
 // this file never reimplements ssh2 code; it exercises the exact bytes
-// `npm ci` put in node_modules/ssh2, the bytes the extension's SSH transport
-// actually runs. The manifest/lockfile shape guards live in
-// test/package-ssh2.test.ts; this file pins the two runtime properties the old
-// git fork (jeanp413/ssh2@a169f62) existed for, so a silent downgrade back to
-// the fork — or a fresh install that skipped scripts/patch-ssh2.js — fails
-// here rather than on a live connection:
+// pnpm installed (and patched) in node_modules/ssh2, the bytes the extension's
+// SSH transport actually runs. It pins the two runtime properties the old git
+// fork (jeanp413/ssh2@a169f62) existed for, so a silent downgrade back to the
+// fork — or an ssh2 bump that left patches/ behind — fails here rather than on
+// a live connection:
 //
 // 1. Terrapin (CVE-2023-48795): the client KEXINIT proposal must advertise
 //    strict-kex (`kex-strict-c-v00@openssh.com`) next to `ext-info-c`. The
@@ -20,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 //
 // 2. ECDSA host-key verification: sigSSHToASN1 must hand OpenSSL minimal,
 //    positive DER INTEGERs (the fork's "Fix sigSSHToASN1", re-applied to the
-//    npm tree by scripts/patch-ssh2.js), and a truncated signature must return
+//    registry's ssh2 by patches/ssh2@1.17.0.patch), and a truncated signature must return
 //    `undefined` — never throw. The fork converted r/s before its
 //    truncated-signature check, so a malformed signature escaped as a
 //    TypeError from inside the handshake; the patched tree checks first and

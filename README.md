@@ -1,10 +1,19 @@
-# Open Remote - SSH (tmux)
+# Open Remote - SSH (Spinbox)
 
 A VS Code / VSCodium extension that connects to a remote dev machine over
 SSH — **identical to [open-remote-ssh](https://github.com/jeanp413/open-remote-ssh)
-in look and feel** — with one under-the-hood upgrade: **remote terminals are
-backed by [tmux](https://github.com/tmux/tmux)**, so they persist and can be
-re-attached from any machine.
+in look and feel** — with **remote terminals backed by
+[tmux](https://github.com/tmux/tmux)**, so they persist and can be re-attached
+from any machine.
+
+This is Spinbox's fork, `spin-stack/open-remote-ssh`: the remote resolver the
+[Spinbox extension](https://github.com/spin-stack/vscode-spinbox) opens
+workspaces through, so a connection's failures are Spinbox's to see and fix
+([spin-stack/vscode-spinbox#24](https://github.com/spin-stack/vscode-spinbox/issues/24)).
+It starts from
+[developerz-ai/open-remote-ssh-tmux](https://github.com/developerz-ai/open-remote-ssh-tmux),
+itself a fork of [jeanp413/open-remote-ssh](https://github.com/jeanp413/open-remote-ssh);
+both are MIT, and so is this ([LICENSE.txt](LICENSE.txt), [Credit](#credit)).
 
 ![Open Remote SSH](https://raw.githubusercontent.com/jeanp413/open-remote-ssh/master/docs/images/open-remote-ssh.gif)
 
@@ -32,25 +41,20 @@ honest technical picture (below).
 
 ## Install
 
-Releases ship as a `.vsix` on the
-[Releases page](https://github.com/developerz-ai/open-remote-ssh-tmux/releases)
-(not yet on Open VSX or the VS Code Marketplace).
+Nothing is published yet: build the `.vsix` (below) and install it.
 
-1. Download `open-remote-ssh-tmux-<version>.vsix` from the latest release.
-2. Optionally verify it against the published `.sha256`:
-   `sha256sum -c open-remote-ssh-tmux-<version>.vsix.sha256`
-3. In VS Code / VSCodium: Command Palette → `Extensions: Install from VSIX…`
-   → pick the downloaded file.
-4. VSCodium < 1.75 and VSCode-OSS also need the extension enabled in
+1. In VS Code / VSCodium: Command Palette → `Extensions: Install from VSIX…`
+   → pick `open-remote-ssh.vsix`.
+2. VSCodium < 1.75 and VSCode-OSS also need the extension enabled in
    `argv.json` — see [Activation](#activation) below.
-5. **Fully close and reopen the remote window.** This extension resolves the
+3. **Fully close and reopen the remote window.** This extension resolves the
    remote authority, so a newly installed build only takes effect on a fresh
    resolve — `Developer: Reload Window` alone is not always enough.
 
 ### Installing a locally built VSIX
 
 ```bash
-npm run package          # produces open-remote-ssh-tmux-<version>.vsix
+go tool task package     # produces open-remote-ssh.vsix
 ```
 
 > **Bump the version before reinstalling.** Installing a `.vsix` whose version
@@ -73,166 +77,10 @@ tmux terminals: 1 re-attached, 0 reclaimed, 0 adopted, 0 pruned
 If instead you see `Tmux wiring failed: …`, the layer is off and terminals fall
 back to plain shells — see [Troubleshooting](#troubleshooting).
 
-## Contributing: local checks
+## Developing
 
-On Linux or macOS, use Node **20.20.2** (`.nvmrc`) and npm, plus a
-supported Python 3 and **pipx** for workflow linting. These are local developer
-prerequisites, not requirements for using the extension. npm does **not**
-install Python or pipx. Install pipx with your OS package manager (for example,
-`brew install pipx` on macOS, or `sudo apt install pipx python3-venv` on
-Debian/Ubuntu), then:
-
-```sh
-pipx ensurepath
-# Open a new shell so the PATH update takes effect, then:
-python3 --version
-pipx --version
-npm install
-pipx run zizmor --version
-npm run ci:lint
-```
-
-See [pipx installation](https://pipx.pypa.io/stable/installation/) for other
-Unix distributions. Ensure `pipx` is on the PATH inherited by your editor's
-Git hooks, not just an interactive shell. `pipx run zizmor` acquires zizmor in
-an isolated cached environment; no global `zizmor` executable is needed.
-First use (and cache refresh) requires network access to the Python package
-index and writable pipx/cache directories. An offline empty cache cannot run
-this check; acquisition errors fail the hook rather than skipping it.
-
-### Maintenance tools (Linux/macOS)
-
-These tools maintain this repository; they are not extension requirements.
-Complete maintenance setup requires **both** steps:
-
-1. From the repository root, run `npm install` (also run by `bin/setup`) to
-   install the pinned **project-local artifact** CLI, including devDependencies.
-2. Install official **pinact**, a separate Go binary, not an npm dependency.
-   With Homebrew on Linux/macOS, run `brew install pinact`. Alternatively,
-   download the Linux/macOS release binary for your architecture and verify it
-   using the upstream
-   [installation and verification instructions](https://github.com/suzuki-shunsuke/pinact/blob/main/INSTALL.md).
-   Place the verified executable in a directory on the **PATH inherited by npm**,
-   not only behind an interactive shell alias. For example, if installed in
-   `$HOME/.local/bin`, run `export PATH="$HOME/.local/bin:$PATH"` before invoking
-   npm, and persist that PATH in the environment used by your editor or hooks.
-   For Homebrew, ensure its binary directory is likewise on npm's PATH.
-
-`npm install` (or `bin/setup`) alone does **not** install pinact; it completes
-only step 1. After both steps, check installation from the repository root
-without updating maintenance files:
-
-```sh
-./node_modules/.bin/artifact --help
-npm run update:artifacts -- --help
-pinact --version
-pinact run --help
-npm run update:ci -- --help
-```
-
-When deliberately refreshing maintenance files, run:
-
-```sh
-npm run update:artifacts
-npm run update:ci
-```
-
-Installation and real updates require network access. Unlike the help/version
-checks, real updates **modify repository files**: artifact refreshes files
-managed by `.artifactrc.yml`, and pinact updates GitHub Actions pins in workflow
-files. Review the resulting diff before committing. `update:ci` preserves
-`PINACT_MIN_AGE=7 pinact run --update`: the seven-day release cooldown remains
-in force. Neither update target runs automatically during installation.
-
-### What the hook checks
-
-[`.lintstagedrc.yml`](.lintstagedrc.yml) runs fixpack on a staged `package.json`,
-ESLint on staged `*.ts`, and `pipx run zizmor` on staged workflow YAML, with
-lint-staged appending the matched paths. `npm run ci:lint` checks
-all workflows via `pipx run zizmor .`; `npm run ci:lint:fix` uses the same
-command with `--fix=all` (and can modify workflows).
-[The pre-commit hook](.husky/pre-commit) runs lint-staged, then compilation and
-tests. Husky invokes it with `sh -e`: a failed staged check stops the hook.
-
-**The TypeScript glob is not root-only.** Installed lint-staged **16.4.0**
-enables `matchBase: !pattern.includes('/')` in
-[`lib/matchFiles.js:10–21`](https://github.com/lint-staged/lint-staged/blob/v16.4.0/lib/matchFiles.js#L10-L21).
-[`lib/generateTasks.js:22–40`](https://github.com/lint-staged/lint-staged/blob/v16.4.0/lib/generateTasks.js#L22-L40)
-matches relative paths and returns absolute task paths by default. Keep
-`"*.ts": eslint`: it already includes nested TypeScript files.
-
-### Reproduce the evidence
-
-```sh
-npm test -- test/lint-staged.test.ts --maxWorkers=2
-```
-
-Observed by editor[bot] in the focused run (`npm test -- test/lint-staged.test.ts
---maxWorkers=2`, Vitest **4.1.10**, Node **v24.21.0**): **8 passed, 1 skipped,
-0 failed (9 total)**, command exit **0** — on this box, which has no `pipx`.
-Real ESLint **10.5.0**, invoked through installed lint-staged's task runner on
-temporary nested TypeScript files, returned **0** for valid code and **1** for
-`@typescript-eslint/no-explicit-any`; the task runner propagated that failure.
-This is file-based execution, not stdin-only evidence. Matcher tests loaded the
-actual YAML and installed lint-staged internals through native ESM: root and
-nested TS reach ESLint, unrelated files do not, and workflow paths are retained.
-The matcher anchors above disprove the root-only premise; no glob correction was
-needed. On a box where `pipx` and `python3` are on PATH and PyPI is reachable,
-the same command runs all nine tests — the gated acquisition test executes for
-real instead of skipping.
-
-**Stub evidence, not real zizmor:** the regression test executes lint-staged's
-actual task runner with a temporary pipx stub, checks its exact appended
-arguments, and observes success/failure for stub exits **0/17**. Temporary
-npx/npm stubs run the real pre-commit script under `sh -e`: exits **0/23**
-propagate, and failure prevents compilation/tests from being invoked. No Git
-operations or real compilation are performed by these stub tests.
-
-**Real zizmor integration is gated, not blocked:** where `pipx` and `python3`
-are on the parent PATH and `https://pypi.org/simple/` answers within its short
-timeout, the integration test acquires real zizmor through `pipx run` with a
-cold cache and requires an actual `template-injection` finding naming the unsafe
-workflow plus a propagated nonzero exit — there, a failed acquisition fails the
-test. Where a prerequisite is missing, Vitest reports the test as **skipped**
-with the reason logged (this run: `Skipped real zizmor acquisition —
-environment lacks: pipx on PATH`), so it is visible in the summary and never
-counts as passed. The previous hard-fail-on-missing-prerequisite behaviour made
-`npm test` require pipx and PyPI network access everywhere, contradicting
-[the prerequisite list above](#contributing-local-checks) that positions pipx as
-optional.
-
-The real-acquisition path requires Unix, executable `pipx` and `python3` on the
-parent PATH, Python venv support, network access to the Python package index,
-and a writable temporary directory. It deliberately starts with fresh pipx home,
-application, man, XDG cache and pip cache directories on every run, so a warm
-user cache is insufficient for offline execution. Its child PATH exposes only
-the real pipx and Python prerequisites, not any global zizmor. The test logs
-Node/Python/pipx and acquired zizmor versions, checks real valid and unsafe
-workflow fixtures through lint-staged, and requires a `template-injection`
-finding naming the unsafe file plus a propagated nonzero exit. Acquisition and
-task subprocesses have bounded timeouts; temporary fixtures and caches are
-removed in `finally`. Missing pipx, python3, or PyPI reachability produce a
-logged skip, never a silent pass; where the prerequisites exist, a failed
-acquisition fails the test. The negative case that must never be skipped has
-its own unconditional test: it hands the staged workflow task a PATH containing
-only an empty `bin/` directory — no `pipx` anywhere — and requires the task to
-fail loudly (`Task failed to spawn`, nonzero exit; measured `exitCode=-2` in
-this run), so the hook can never silently pass the workflow check on a
-pipx-less box.
-
-**Harness-only evidence:** end-to-end staged Git/Husky execution on valid and
-invalid representative TS/workflows, standalone workflow lint, and the full
-repository gate were not run by the editor. Stub hook tests do not prove any
-of those checks. The harness must record their real statuses separately.
-Fixpack, ESLint and zizmor remain enabled and enforced in the hook. `npm audit
-audits the whole resolved dependency tree, not the staged `package.json`, so it
-deliberately does not gate per-file commits: previous runs measured it refusing
-every commit on 38 pre-existing dev-dependency advisories (release-it/undici,
-vite) that no staged change causes. It is not silenced — `npm run lint:all`
-still runs it, CI executes `lint:all` on pushes to `main` and on pull requests
-into it, skipped only when every changed file is markdown, and `npm run
-audit:fix` is the remediation path. No audit result was measured by this
-focused run.
+[CONTRIBUTING.md](CONTRIBUTING.md): Go (for `go tool task`), Node 22 and pnpm,
+and `go tool task ci` runs what CI runs.
 
 ## Requirements
 
@@ -323,8 +171,8 @@ v1.0.0 was validated against a real rig — two isolated VSCodium clients drivin
 two Docker remotes over real SSH, with every remote-side assertion read back
 over an independent connection. 19 of 21 acceptance rows pass, including every
 row covering the two hard invariants (invisible UX, no zombies) and the full
-multi-client hand-off model. Full results:
-[`results-2026-07-24.md`](docs/plans/2026/07/24/101-v1-tmux-release/results-2026-07-24.md).
+multi-client hand-off model. The full results are in developerz-ai's
+repository, `docs/plans/2026/07/24/101-v1-tmux-release/results-2026-07-24.md`.
 
 Two rows are **not** fully closed, and are listed here rather than glossed over:
 
@@ -340,7 +188,7 @@ Two rows are **not** fully closed, and are listed here rather than glossed over:
   still outstanding.
 
 Reports on either are welcome in
-[Issues](https://github.com/developerz-ai/open-remote-ssh-tmux/issues).
+[Issues](https://github.com/spin-stack/open-remote-ssh/issues).
 
 ### Fixed in v1.1.0
 
@@ -524,7 +372,7 @@ Enable the extension in your `argv.json`
     ...
     "enable-proposed-api": [
         ...,
-        "developerz-ai.open-remote-ssh-tmux",
+        "spin-stack.open-remote-ssh",
     ]
     ...
 }
@@ -539,7 +387,7 @@ The file lives at:
 | macOS | `~/.vscode-oss/argv.json` |
 | Windows | `%USERPROFILE%\.vscode-oss\argv.json` (e.g. `C:\Users\<you>\.vscode-oss\argv.json`) |
 
-The publisher id must match exactly — `developerz-ai.open-remote-ssh-tmux`.
+The publisher id must match exactly — `spin-stack.open-remote-ssh`.
 A typo here fails silently: the extension installs and appears enabled, but
 proposed APIs stay unavailable and remote resolution never starts.
 Restart the editor (not just reload) after editing `argv.json`.
@@ -640,9 +488,11 @@ Before 1.99.0, the old scheme needs to be used:
 ## Credit
 
 This extension is a fork of
+[developerz-ai/open-remote-ssh-tmux](https://github.com/developerz-ai/open-remote-ssh-tmux),
+which added the tmux-backed persistent terminals, the clipboard image bridge
+and the test suite, and which is itself a fork of
 [jeanp413/open-remote-ssh](https://github.com/jeanp413/open-remote-ssh), which
 does all the heavy lifting of resolving the `ssh-remote` authority, installing
-the VS Code server, and running the remote session over SSH. This fork keeps
-that entirely intact and adds tmux-backed persistent terminals on top. All
-credit for the SSH/server-install foundation goes to the upstream project and
-its contributors.
+the VS Code server, and running the remote session over SSH. All credit for
+that foundation goes to both projects and their contributors. Both are MIT
+licensed, and their copyright notices are kept in [LICENSE.txt](LICENSE.txt).

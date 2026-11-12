@@ -1,17 +1,48 @@
+# Weekly and grouped, a week after a release (cooldown): one pull request per ecosystem. What
+# versions.yaml pins (the Task `go tool task` runs) is not here: `versions check` says what is
+# behind there.
 version: 2
 updates:
-  # Maintain dependencies for GitHub Actions
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+      day: monday
     cooldown:
       default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
 
-  # Maintain dependencies for npm
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    groups:
+      go:
+        patterns: ["*"]
+    commit-message:
+      prefix: "deps"
+
+  # pnpm, which this ecosystem reads. ssh2 is held at the version patches/ is made for: a bump of
+  # it fails test/ssh/ssh2.security.test.ts until the patch is made again for the new version.
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
+      day: monday
     cooldown:
       default-days: 7
+    ignore:
+      - dependency-name: ssh2
+    groups:
+      js:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "deps"

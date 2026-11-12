@@ -82,7 +82,7 @@ export function applyEnvCollection(
         // otherwise resolve to the inherited `Object.prototype` member, read as truthy, and
         // skip its own withdrawal — leaving a stale value contributed to every terminal for
         // the life of the window.
-        const value = Object.prototype.hasOwnProperty.call(wanted, key) ? wanted[key] : undefined;
+        const value = Object.hasOwn(wanted, key) ? wanted[key] : undefined;
         if (!value) {
             sink.delete(key);
             applied.delete(key);

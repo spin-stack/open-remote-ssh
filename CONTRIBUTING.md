@@ -1,87 +1,33 @@
 # Contributing
 
-:+1::tada: First off, thanks for taking the time to contribute! :tada::+1:
+Every change goes in by pull request, rebased onto main and merged by rebase once CI's Gate is
+green.
 
-This document is intended for anyone considering opening an **issue**, **discussion** or **pull request**.
+## Developing
 
-#### Table Of Contents
+Needs Go (the tools are pinned in `go.mod` and `versions.yaml`), Node 22 and pnpm.
 
-- [Code of Conduct](#code-of-conduct)
-- [Use of AI](#use-of-ai)
-- [I have a bug! / Something isn't working](#i-have-a-bug--something-isnt-working)
-- [I have an idea for a feature](#i-have-an-idea-for-a-feature)
-- [I want to make changes](#i-want-to-make-changes)
-- [Spread the word](#spread-the-word)
+```sh
+go tool task install     # dependencies, through Socket Firewall; ssh2 is patched as it installs
+go tool task lint        # Biome
+go tool task typecheck   # tsc over src/ and test/
+go tool task test        # unit tests (Vitest), with vscode replaced by test/mocks/vscode.ts
+go tool task package     # open-remote-ssh.vsix
+go tool task ci          # what CI runs
+```
 
-## Code of Conduct
+F5 in VS Code runs the extension in an Extension Development Host (`.vscode/launch.json`).
 
-This project and everyone participating in it is governed by the [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.
+## ssh2
 
-## Use of AI
+ssh2 1.17.0 lacks the ECDSA signature fix jeanp413's ssh2 fork carried, so pnpm patches it as it
+installs (`patches/ssh2@1.17.0.patch`, `patchedDependencies` in `pnpm-workspace.yaml`), and
+`test/ssh/ssh2.security.test.ts` holds the installed tree to the fix and to strict key exchange
+(Terrapin). A bump of ssh2 installs unpatched, which that test refuses: make the patch again with
+`pnpm patch ssh2@<version>` and `pnpm patch-commit`, or delete it when ssh2 has the fix.
 
-We welcome use of AI tools to help draft discussions, issues, or code, but please follow these rules:
+## Following upstream
 
-- Use AI tools responsibly and disclose their use.
-- Ensure all content passes a human review for authenticity and quality.
-- Be concise. Do not write verbose discussions, issues or PR.
-
-Discussions, issues or PR that consist solely of unvetted AI outputs may be closed at the maintainer's discretion.
-
-## I have a bug! / Something isn't working
-
-First, search the issue tracker for similar issues.<br />
-Tip: also search for [closed issues]; your issue might have already been fixed!
-
-> [!NOTE]
->
-> If there is an _open_ issue that matches your problem, **please do not comment on it unless you have valuable insight to add**.
->
-> Use the emoji reactions on issues, which are a visible yet non-disruptive way to show your support.
-
-If your issue hasn't been reported already, open a new issue and make sure to fill in the template **completely**. They are vital for maintainers to figure out important details about your setup.
-
-[closed issues]: https://github.com/jeanp413/open-remote-ssh/issues?q=is%3Aissue%20state%3Aclosed
-
-## I have an idea for a feature
-
-Like bug reports, first search through issues and try to find if your feature has already been requested. Otherwise, open a new issue.
-
-## I want to make changes
-
-Small and trivial improvements can be submitted without any issues.
-
-**For non-trivial changes**, pull requests should be associated with a **previously accepted issue**.<br />
-It's always better to ask for prior approval and discuss what you want to do before doing it.
-
-Discussing that you want to do something doesn't put any obligations on you. If you don't want to start the discussion just because you're afraid that you won't do it. Don't be afraid!
-
-> [!NOTE]
->
-> **Pull requests are NOT a place to discuss feature design.** Please do not open a WIP pull request to discuss a feature. Instead, use an issue and link to your branch.
-
-### Code hygiene
-
-When implementing features and bug fixes, please stick to the structure of the codebase as much as possible and do not take this as an opportunity to do some "refactoring along the way".
-
-Similarly:
-- **Make your changes** following our code standards
-- **Test your changes** thoroughly
-- **Update documentation** if needed
-- **Commit your changes** with clear, descriptive commit messages
-
-### Version
-
-Do not bump the version number.
-
-### CHANGELOG.md
-
-Do not add an entry to the `CHANGELOG.md` file.
-
-## Spread the word
-
-Do you like the project?
-
-* Spread the word in social networks!
-* Talk about it to your colleagues and friends
-* Write a blogpost
-* Record a YouTube video
+`upstream` is developerz-ai/open-remote-ssh-tmux, which follows jeanp413/open-remote-ssh. The
+fork keeps upstream's code style and import order (the formatter is off, `biome.jsonc` says
+why), so a merge from upstream conflicts only where the code differs.

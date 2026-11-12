@@ -1,6 +1,12 @@
-# CLAUDE.md — open-remote-ssh-tmux
+# CLAUDE.md — open-remote-ssh (Spinbox's fork)
 
 ## What this is
+
+Spinbox's fork, `spin-stack/open-remote-ssh`: the remote resolver the Spinbox
+extension (spin-stack/vscode-spinbox) opens workspaces through
+(spin-stack/vscode-spinbox#24). It starts from developerz-ai/open-remote-ssh-tmux,
+described below, which follows jeanp413/open-remote-ssh; `upstream` is
+developerz-ai's.
 
 A VS Code / VSCodium extension that connects to a remote dev machine over SSH —
 **identical to [jeanp413/open-remote-ssh](https://github.com/jeanp413/open-remote-ssh)
@@ -19,8 +25,7 @@ terminals).
 PC/laptop/VPS hand-off, keeping a long Claude Code task alive, the honest
 [`persistence-model.md`](docs/idea/persistence-model.md), the tmux design in
 [`tmux-approach.md`](docs/idea/tmux-approach.md), why-tmux-not-mosh in
-[`decision-mosh-vs-tmux.md`](docs/idea/decision-mosh-vs-tmux.md), and the
-[`ai-first.md`](docs/idea/ai-first.md) stance.
+and [`decision-mosh-vs-tmux.md`](docs/idea/decision-mosh-vs-tmux.md).
 
 ### The shape of the change
 
@@ -104,80 +109,43 @@ Practical: no god functions, no reaching across layers, delete before you
 abstract, and introduce an abstraction only when there's a second real consumer
 (e.g. tmux backend + Windows-shell fallback).
 
-## AI-first
-
-This is an **AI-first repo** — agents write ~100% of the code, humans review and
-steer. Conventions inherit from [`../gold-standards-in-ai/`](../gold-standards-in-ai/docs/00-philosophy.md)
-(great DX = fast agents; write everything down; low undefined behaviour; surgical
-diffs). **Unit TDD is the workflow: write the failing unit test first, then the
-code to pass it — no test, no merge.** See
-[`docs/idea/ai-first.md`](docs/idea/ai-first.md) for what's already set up vs. the
-gaps to close (test suite is wired up — vitest, `npm test`; the empirical F5/EDH
-persistence proof is now done — 19/21 acceptance rows PASS, see
-`docs/plans/2026/07/24/101-v1-tmux-release/results-2026-07-24.md`). For AI-first conventions
-(DX scripts, hooks/permissions, testing) mirror the patterns in
-[`../gold-standards-in-ai/`](../gold-standards-in-ai/docs/writing-for-agents/README.md)
-and [`../ai-task-master/`](../ai-task-master/CLAUDE.md).
-
 ## Conventions (match the repo, don't invent)
 
-- **Language:** TypeScript, `strict` mode, target ES2020, CommonJS. No `any`
-  (`noImplicitAny`), no unused locals/params, explicit `override`. Honour the
-  existing `tsconfig.json`.
+- **Language:** TypeScript, `strict` mode. No `any`, no unused locals/params,
+  explicit `override`. `tsconfig.json` typechecks `src/` and `test/` together;
+  esbuild bundles (`esbuild.mjs`).
 - **Indentation:** 4-space (see `.editorconfig`). YAML 2-space, JSON tabs,
   shell/PowerShell 2-space. LF, final newline, trimmed trailing whitespace.
-- **Lint:** ESLint (`@stylistic`, `typescript-eslint`, `jsdoc`). Run
-  `npm run lint` / `npm run lint:fix`.
-- **Comments:** match the surrounding density. The good examples
-  (`splitProxyCommand` in `authResolver.ts`, the template helpers in
-  `serverSetup.ts`) explain *why* + link the upstream issue. Do that when the
-  reasoning is non-obvious; don't narrate the obvious.
-- **Node:** v20 (`.nvmrc` `v20.20.2`). npm, not pnpm/yarn/bun.
+- **Lint:** Biome (`biome.jsonc`), warnings fail. The formatter is off and the
+  style-only rules are off so upstream merges stay clean; `biome.jsonc` says why.
+- **Comments:** say *why*, and link the upstream issue when there is one. Don't
+  narrate the obvious, and don't narrate what code replaced.
+- **Tooling:** the stack's: Node 22, pnpm through Socket Firewall, `go tool task`
+  (`Taskfile.yml`), every CI step one task. `CONTRIBUTING.md` has the commands.
 
 ## Build & verify
 
 ```bash
-npm install            # postinstall pulls vscode dts
-npm run compile:src    # tsc -b (src only → out/), then compile:test: type-checks
-                       # test/ + vitest.config.ts via tsconfig.test.json (noEmit)
-npm run watch:src      # tsc-watch + dev bundle
-npm run bundle         # webpack production → lib/extension.js
-npm run build          # clean + compile + bundle (what vsce:prepublish runs)
-npm run lint           # eslint
-npm run package        # produce the .vsix
+go tool task install     # pnpm through sfw; ssh2 patched as it installs
+go tool task lint        # biome
+go tool task typecheck   # tsc --noEmit
+go tool task test        # vitest
+go tool task package     # open-remote-ssh.vsix
+go tool task ci          # what CI's Gate runs
 ```
 
-**Unit TDD** is the workflow: write the failing unit test first, then the code to
-pass it. The test suite is wired up — **vitest, `npm test`** (see
-[`docs/idea/ai-first.md`](docs/idea/ai-first.md)) — and the pure logic (session
-naming, attach-or-create, reap decisions, `sshConfig`, `sshDestination`,
-`serverConfig`, `ports`, `splitProxyCommand`) is unit-tested first. "Verify" then
-means: failing-test-first → code → `tsc` clean, `eslint` clean, unit tests green,
-and — for anything touching the resolver or the tmux terminal layer — `F5`
-(Extension Development Host) and a real connect proving terminals persist and
-re-attach (disconnect → reconnect → same session; re-open workspace → no
-duplicate/zombie session). That empirical F5/EDH proof was run against a real
-tmux rig for v1.0.0 — 19/21 rows PASS, results in
-[`results-2026-07-24.md`](docs/plans/2026/07/24/101-v1-tmux-release/results-2026-07-24.md),
-matrix definition in
-[`09-verify.md`](docs/plans/2026/07/24/101-v1-tmux-release/09-verify.md). Two rows
-remain open and are documented as known limitations: **row 13** (Windows remote —
-needs a real Windows SSH target; the platform gate is confirmed to engage) and
-**row 18** (Claude Code TUI redraw after reattach — the underlying mechanism is
-covered by rows 2/20/21). Re-run the zombie rows (6-9) for any change to the tmux
-terminal layer.
+Write the failing unit test first, then the code; prove a new test can fail by
+planting the bug. For anything touching the resolver or the tmux terminal layer,
+also F5 (Extension Development Host) and a real connect. Re-run developerz-ai's
+zombie rows (disconnect → reconnect → same session; re-open → no duplicate) for
+any change to the tmux terminal layer.
 
 ## Git / PR discipline
 
-- **Conventional Commits**, enforced by commitlint + husky. Allowed types:
-  `build ci docs enhance feat fix perf refactor remodel revert style test vcs`.
-  Body lines ≤ 200 chars.
-- Branch off `main`; never commit straight to it.
-- **Fork hygiene:** we track upstream `jeanp413/open-remote-ssh`. Keep the tmux
-  changes isolated and well-labelled (their own `src/tmux/*` module) so upstream
-  fixes still merge cleanly. Don't gratuitously reformat upstream files — it
-  poisons future merges.
-- Commit / push only when asked. Co-author trailer as configured.
+- Branch off `main` (in a worktree under `.wt/`); never push to main. One pull
+  request per feature, merged by rebase once CI's Gate is green.
+- **Fork hygiene:** keep Spinbox's changes in their own modules so upstream
+  fixes still merge cleanly. Don't reformat upstream files.
 
 ## Guardrails
 
@@ -192,7 +160,3 @@ terminal layer.
   user or risks orphaned sessions, surface it — don't ship it quietly.
 - tmux is Unix-only — degrade gracefully on Windows remotes, never break the base
   SSH connect.
-
-## Note
-
-Do not use git worktrees — work directly in this checkout. If a task is big enough to need subagents, run them as a team in this same checkout: split the work into disjoint pieces so no two agents touch the same files.

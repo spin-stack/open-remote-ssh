@@ -1,7 +1,8 @@
 MIT License
 
-Copyright (c) 2022
-Copyright (c) 2026 developerz-ai (open-remote-ssh-tmux fork)
+Copyright (c) 2022 jeanp413 (open-remote-ssh, https://github.com/jeanp413/open-remote-ssh)
+Copyright (c) 2026 developerz-ai (open-remote-ssh-tmux fork, https://github.com/developerz-ai/open-remote-ssh-tmux)
+Copyright (c) 2026 spin-stack (this fork, https://github.com/spin-stack/open-remote-ssh)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

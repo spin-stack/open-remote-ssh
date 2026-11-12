@@ -188,7 +188,7 @@ export function expandTokens(template: string, tokens: Record<string, string>): 
                 i += 1;
                 continue;
             }
-            if (Object.prototype.hasOwnProperty.call(tokens, next)) {
+            if (Object.hasOwn(tokens, next)) {
                 out += tokens[next];
                 i += 1;
                 continue;
@@ -611,7 +611,7 @@ export class RemoteSSHResolver implements vscode.RemoteAuthorityResolver, vscode
                             agentForward: proxyAgentForward,
                             agent: proxyAgent,
                             hostVerifier: this.buildHostVerifier(proxyHostName, proxyPort),
-                            authHandler: (arg0, arg1, arg2) => (proxyAuthHandler(arg0, arg1, arg2), undefined)
+                            authHandler: (arg0, arg1, arg2) => { proxyAuthHandler(arg0, arg1, arg2); }
                         });
                         this.proxyConnections.push(proxyConnection);
 
@@ -671,7 +671,7 @@ export class RemoteSSHResolver implements vscode.RemoteAuthorityResolver, vscode
                     agentForward,
                     agent,
                     hostVerifier: this.buildHostVerifier(sshHostName, sshPort),
-                    authHandler: (arg0, arg1, arg2) => (sshAuthHandler(arg0, arg1, arg2), undefined),
+                    authHandler: (arg0, arg1, arg2) => { sshAuthHandler(arg0, arg1, arg2); },
                 });
                 await this.sshConnection.connect();
 
@@ -967,7 +967,7 @@ export class RemoteSSHResolver implements vscode.RemoteAuthorityResolver, vscode
                     }
                     if (!await fileExists(identityKey.filename)) {
                         // Try next identity file
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        // biome-ignore lint/suspicious/noExplicitAny: ssh2's typings have no "next method" value, and null is it
                         return callback(null as any);
                     }
 
@@ -990,7 +990,7 @@ export class RemoteSSHResolver implements vscode.RemoteAuthorityResolver, vscode
                     }
                     if (!result || result instanceof Error) {
                         // Try next identity file
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        // biome-ignore lint/suspicious/noExplicitAny: ssh2's typings have no "next method" value, and null is it
                         return callback(null as any);
                     }
 
