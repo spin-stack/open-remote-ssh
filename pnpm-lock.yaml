@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  ssh2@1.17.0: 291fef040666a7592b26e7fee2cd682ac62e5cf269c092641d03c9644e87056f
+  ssh2@1.17.0: e19040bc894509e68f83e869b83add27d179a70f36b2497d741536d727fe6937
 
 importers:
 
@@ -31,7 +31,7 @@ importers:
         version: 5.1.0
       ssh2:
         specifier: 1.17.0
-        version: 1.17.0(patch_hash=291fef040666a7592b26e7fee2cd682ac62e5cf269c092641d03c9644e87056f)
+        version: 1.17.0(patch_hash=e19040bc894509e68f83e869b83add27d179a70f36b2497d741536d727fe6937)
     devDependencies:
       '@biomejs/biome':
         specifier: 2.6.3
@@ -3223,7 +3223,7 @@ snapshots:
 
   ssh-config@5.1.0: {}
 
-  ssh2@1.17.0(patch_hash=291fef040666a7592b26e7fee2cd682ac62e5cf269c092641d03c9644e87056f):
+  ssh2@1.17.0(patch_hash=e19040bc894509e68f83e869b83add27d179a70f36b2497d741536d727fe6937):
     dependencies:
       asn1: 0.2.6
       bcrypt-pbkdf: 1.0.2

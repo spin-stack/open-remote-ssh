@@ -24,6 +24,7 @@
 		"lint:fix": "biome check --write --error-on-warnings .",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
+		"test:e2e": "vitest run --config vitest.e2e.config.mts",
 		"package": "vsce package --no-dependencies --out open-remote-ssh.vsix"
 	},
 	"dependencies": {
@@ -54,6 +55,7 @@
 		"onCommand:openremotessh.showLog",
 		"onCommand:openremotessh.tmux.killWorkspaceSessions",
 		"onResolveRemoteAuthority:ssh-remote",
+		"onResolveRemoteAuthority:spin",
 		"onTerminalProfile:tmux",
 		"onView:sshHosts",
 		"onCommand:openremotessh.pasteImage"
@@ -155,6 +157,12 @@
 						"The remote server won't validate the client.",
 						"The remote server and client's commits must match. (default)"
 					]
+				},
+				"remote.spin.cliPath": {
+					"type": "string",
+					"markdownDescription": "The spin CLI that opens Spinbox workspaces (`spin+<workspace>`). Empty runs the one the Spinbox extension carries, or else `spin` on the PATH.",
+					"scope": "machine",
+					"default": ""
 				},
 				"remote.SSH.tmux.enabled": {
 					"type": "string",
@@ -282,6 +290,16 @@
 					"separator": "/",
 					"tildify": true,
 					"workspaceSuffix": "SSH"
+				}
+			},
+			{
+				"scheme": "vscode-remote",
+				"authority": "spin+*",
+				"formatting": {
+					"label": "${path}",
+					"separator": "/",
+					"tildify": true,
+					"workspaceSuffix": "Spinbox"
 				}
 			}
 		],

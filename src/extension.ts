@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import Log from './common/logger';
 import { RemoteSSHResolver, REMOTE_SSH_AUTHORITY } from './authResolver';
+import { SpinboxResolver, SPIN_AUTHORITY } from './spin/resolver';
 import SSHDestination from './ssh/sshDestination';
 import { KILL_WORKSPACE_SESSIONS_COMMAND_ID, killWorkspaceSessions, openSSHConfigFile, promptOpenRemoteSSHWindow, type WorkspaceKillTarget } from './commands';
 import { HostTreeDataProvider } from './hostTreeView';
@@ -20,6 +21,10 @@ export async function activate(context: vscode.ExtensionContext) {
     const remoteSSHResolver = new RemoteSSHResolver(context, logger);
     context.subscriptions.push(vscode.workspace.registerRemoteAuthorityResolver(REMOTE_SSH_AUTHORITY, remoteSSHResolver));
     context.subscriptions.push(remoteSSHResolver);
+
+    const spinboxResolver = new SpinboxResolver(logger);
+    context.subscriptions.push(vscode.workspace.registerRemoteAuthorityResolver(SPIN_AUTHORITY, spinboxResolver));
+    context.subscriptions.push(spinboxResolver);
 
     // Settle the terminal environment contribution NOW, at activation, while the window has
     // no terminals for it to invalidate. Any later mutation marks open terminals stale, and

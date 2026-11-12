@@ -14,7 +14,19 @@ go tool task typecheck   # tsc over src/ and test/
 go tool task test        # unit tests (Vitest), with vscode replaced by test/mocks/vscode.ts
 go tool task package     # open-remote-ssh.vsix
 go tool task ci          # what CI runs
+go tool task test:e2e SPIN=<spin checkout> VSCODE_COMMIT=<commit>   # the Spinbox resolver, below
 ```
+
+The unit tests need OpenSSH's `sshd` and `ssh-keygen` (`test/spin/keys.sshd.test.ts` runs a
+real sshd that, like a workspace's, admits certificates only).
+
+## The Spinbox resolver against a real installation
+
+`test/e2e/` drives `src/spin/open.ts` - what the `spin+<workspace>` resolver runs - against
+spin's e2e stack and the real spin CLI. In a spin checkout, `task e2e:up` and
+`task e2e:workspaces` (KVM and `sudo -n`); then here `go tool task test:e2e SPIN=<that checkout>
+VSCODE_COMMIT=<spin's versions.yaml vscode pin>`. `test/e2e/cli.e2e.test.ts` needs only the CLI
+(`SPIN_E2E_CLI`): the refusals it gives with no installation.
 
 F5 in VS Code runs the extension in an Extension Development Host (`.vscode/launch.json`).
 

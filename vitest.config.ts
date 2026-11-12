@@ -8,6 +8,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
     test: {
         include: ['test/**/*.test.ts'],
+        // test:e2e's, which need spin's e2e stack.
+        exclude: ['test/e2e/**'],
         environment: 'node',
     },
     resolve: {

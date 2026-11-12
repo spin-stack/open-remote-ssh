@@ -77,6 +77,28 @@ tmux terminals: 1 re-attached, 0 reclaimed, 0 adopted, 0 pruned
 If instead you see `Tmux wiring failed: …`, the layer is off and terminals fall
 back to plain shells — see [Troubleshooting](#troubleshooting).
 
+## Spinbox workspaces
+
+A window on `vscode-remote://spin+<workspace>/<path>` opens a Spinbox workspace through the
+spin CLI, with no SSH configuration of its own:
+
+- `spin code <workspace> --no-open --vscode-commit <this editor's commit> --start` has the
+  workspace running with the VS Code server for this commit on the extension disk the
+  installation publishes;
+- `spin ssh-prepare` opens a session, checking the workspace's launch claim and writing the
+  host key it names; the connection is carried by `spin ssh-proxy`, accepts that host key only,
+  and logs in with the certificate the workspace signed for this machine's key;
+- the server is started from the extension disk, and **never downloaded**: a workspace
+  without it is refused with what to do;
+- whatever refuses - a key the installation has not enrolled (`Spin-Refused:
+  key-not-enrolled`), a profile not signed in, an installation that does not answer - is shown
+  in VS Code with the CLI's words and the one thing to do.
+
+The CLI is `remote.spin.cliPath`, or the one the Spinbox extension carries, or `spin` on the
+PATH. The server the installation publishes is Microsoft's VS Code server, so this opens a
+workspace from Microsoft's VS Code (with this extension's proposed API enabled in `argv.json`,
+[Activation](#activation)); a VSCodium build has no server there.
+
 ## Developing
 
 [CONTRIBUTING.md](CONTRIBUTING.md): Go (for `go tool task`), Node 22 and pnpm,
