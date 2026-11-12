@@ -71,8 +71,13 @@ beforeAll(async () => {
         'PerSourcePenalties no',
         '',
     ].join('\n'));
-    sshd = spawn('/usr/sbin/sshd', ['-D', '-e', '-f', path.join(dir, 'sshd_config')], { stdio: 'ignore' });
-    await waitForPort(port);
+    sshd = spawn('/usr/sbin/sshd', ['-D', '-e', '-f', path.join(dir, 'sshd_config')], { stdio: ['ignore', 'ignore', 'pipe'] });
+    let said = '';
+    sshd.stderr?.on('data', (d: Buffer) => { said += d.toString(); });
+    sshd.on('error', e => { said += e.message; });
+    await waitForPort(port).catch(e => {
+        throw new Error(`${(e as Error).message}: ${said || `exit ${sshd.exitCode}`}`);
+    });
 }, 30_000);
 
 afterAll(() => {
