@@ -9,7 +9,7 @@ await build({
   bundle: true,
   platform: "node",
   format: "cjs",
-  target: "node16",
+  target: "node22",
   external: ["vscode", "cpu-features", "*.node"],
   sourcemap: false,
   minify: true,

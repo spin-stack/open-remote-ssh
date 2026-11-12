@@ -5,7 +5,7 @@
 export const version = '1.146.0';
 
 export const env = {
-    appRoot: '/vscode/appRoot',
+    appCommit: undefined as string | undefined,
     openExternal(_uri: unknown): Promise<boolean> {
         return Promise.resolve(true);
     },

@@ -12,7 +12,7 @@ go tool task install     # dependencies, through Socket Firewall; ssh2 is patche
 go tool task lint        # Biome
 go tool task typecheck   # tsc over src/ and test/
 go tool task test        # unit tests (Vitest), with vscode replaced by test/mocks/vscode.ts
-go tool task package     # open-remote-ssh.vsix
+go tool task package     # spinbox-remote.vsix
 go tool task ci          # what CI runs
 go tool task test:e2e SPIN=<spin checkout> VSCODE_COMMIT=<commit>   # the Spinbox resolver, below
 ```

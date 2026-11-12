@@ -2,6 +2,16 @@
 # (go.mod) and the actions the workflows run (Dependabot's). It is go-tools' versions format:
 # `versions version <name>` reads an entry from a task, `versions check` says what is behind.
 
+- name: cosign
+  kind: module
+  source: github.com/sigstore/cosign/v3/cmd/cosign
+  version: v3.1.4
+  track: github-release https://github.com/sigstore/cosign
+  note: >-
+    What signs a release's SHA256SUMS keyless in task publish:github, run with go run at this
+    version, so the checksum database holds it to its bytes and no runner needs it installed.
+    vscode-spinbox pins it too: keep the two at one version.
+
 - name: task
   kind: download
   source: https://github.com/go-task/task/releases/download/v{version}/task_{os}_{arch}.tar.gz
