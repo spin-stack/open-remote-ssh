@@ -32,13 +32,13 @@ export function spinBinary(setting: string, spinboxPath: string | undefined, pla
     return 'spin';
 }
 
-/** This editor's commit, whose server the workspace runs: its product.json says it. */
-async function editorCommit(): Promise<string> {
-    const product = JSON.parse(await fs.promises.readFile(path.join(vscode.env.appRoot, 'product.json'), 'utf8')) as { commit?: unknown };
-    if (typeof product.commit !== 'string') {
-        throw new Error(`${vscode.env.appRoot}/product.json names no commit: Spinbox opens workspaces in a released VS Code`);
+/** This editor's commit, whose server the workspace runs. A build from source has none. */
+function editorCommit(): string {
+    const commit = vscode.env.appCommit;
+    if (!commit) {
+        throw new Error('this VS Code names no commit: Spinbox opens workspaces in a released VS Code');
     }
-    return product.commit;
+    return commit;
 }
 
 export class SpinboxResolver implements vscode.RemoteAuthorityResolver, vscode.Disposable {
@@ -50,7 +50,7 @@ export class SpinboxResolver implements vscode.RemoteAuthorityResolver, vscode.D
         const { workspace, host } = parseSpinAuthority(authority);
         this.logger.info(`Resolving Spinbox workspace '${workspace}' (attempt #${context.resolveAttempt})`);
         await this.close();
-        const commit = await editorCommit();
+        const commit = editorCommit();
         const cli = new SpinCli(spinBinary(
             vscode.workspace.getConfiguration('remote.spin').get<string>('cliPath', ''),
             vscode.extensions.getExtension(SPINBOX_EXTENSION)?.extensionPath,

@@ -124,8 +124,7 @@ beforeAll(async () => {
 
     const spin = path.join(fixture, 'spin');
     fs.writeFileSync(spin, FAKE_SPIN, { mode: 0o755 });
-    fs.writeFileSync(path.join(fixture, 'product.json'), JSON.stringify({ commit: COMMIT }));
-    env.appRoot = fixture;
+    env.appCommit = COMMIT;
     configOverrides.set('remote.spin.cliPath', spin);
     process.env.HOME = home;
     process.env.FAKE_SPIN_FIXTURE = fixture;

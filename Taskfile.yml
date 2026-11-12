@@ -1,8 +1,14 @@
 version: '3'
 
-# The VS Code extension spin-stack.open-remote-ssh: TypeScript in src/, bundled by esbuild into
+# The VS Code extension spin-stack.spinbox-remote: TypeScript in src/, bundled by esbuild into
 # lib/, packaged by vsce. Every install goes through Socket Firewall (sfw), and every workflow
 # step is one of these tasks (taskgate), so a developer runs what CI runs.
+
+vars:
+  # The release a publish is for: the tag a workflow runs on, or TAG=v1.2.3 on the command line.
+  TAG: '{{.GITHUB_REF_NAME}}'
+  # Where publish:github lays out the release's files, which publish:openvsx publishes.
+  RELEASE: build/release
 
 tasks:
   install:
@@ -46,10 +52,64 @@ tasks:
       - pnpm test:e2e
 
   package:
-    desc: Package the extension into open-remote-ssh.vsix with vsce.
+    desc: Package the extension into spinbox-remote.vsix with vsce.
     cmds:
       - task: build
       - pnpm package
+
+  # The Marketplace refuses an extension that uses a proposed API (resolvers), so a release is
+  # the GitHub release, which `spin vscode install` downloads and holds to the digest spin's
+  # versions.yaml pins, and Open VSX.
+  publish:check:
+    desc: Fail before anything is built when the tag is not v and package.json's version - a VSIX carries the version it was packaged with, never the tag's.
+    env:
+      TAG: '{{.TAG}}'
+    silent: true
+    cmds:
+      - cmd: |
+          if [ "${TAG}" != "v$(node -p 'require("./package.json").version')" ]; then
+            echo "publish: the tag '${TAG}' is not v and package.json's version" >&2
+            exit 1
+          fi
+
+  publish:github:
+    desc: >-
+      The tag's GitHub release, with spinbox-remote-<version>.vsix, SHA256SUMS of it and
+      SHA256SUMS.sigstore.json - cosign's keyless signature of SHA256SUMS as the Publish workflow
+      at the tag, verified before anything is uploaded. A release the tag already has gets these
+      files again, over the ones it had: a run is run again whole. Needs GH_TOKEN and the job's
+      OIDC token.
+    vars:
+      COSIGN:
+        sh: echo "go run github.com/sigstore/cosign/v3/cmd/cosign@$(versions version cosign)"
+      VERSION:
+        sh: node -p 'require("./package.json").version'
+      # Who signs: this workflow at the tag.
+      IDENTITY: '{{.GITHUB_SERVER_URL}}/{{.GITHUB_REPOSITORY}}/.github/workflows/publish.yml@{{.GITHUB_REF}}'
+    cmds:
+      - task: package
+      - rm -rf {{.RELEASE}} && mkdir -p {{.RELEASE}}
+      - cp spinbox-remote.vsix {{.RELEASE}}/spinbox-remote-{{.VERSION}}.vsix
+      - cd {{.RELEASE}} && sha256sum spinbox-remote-{{.VERSION}}.vsix > SHA256SUMS
+      - '{{.COSIGN}} sign-blob --yes --bundle {{.RELEASE}}/SHA256SUMS.sigstore.json {{.RELEASE}}/SHA256SUMS'
+      # A signature nothing verifies is a step that can quietly stop working: one that does not
+      # check fails here, before anything is published.
+      - '{{.COSIGN}} verify-blob --bundle {{.RELEASE}}/SHA256SUMS.sigstore.json --certificate-identity {{.IDENTITY}} --certificate-oidc-issuer https://token.actions.githubusercontent.com {{.RELEASE}}/SHA256SUMS'
+      # Created with its files at once, so no release is ever listed without them.
+      - gh release view {{.TAG}} >/dev/null 2>&1 || gh release create {{.TAG}} --verify-tag --title {{.TAG}} --generate-notes {{.RELEASE}}/*
+      - gh release upload {{.TAG}} --clobber {{.RELEASE}}/*
+
+  publish:openvsx:
+    desc: Publish the VSIX publish:github laid out to Open VSX, with the token OVSX_PAT of the namespace spin-stack.
+    silent: true
+    cmds:
+      - cmd: |
+          if [ -z "${OVSX_PAT:-}" ]; then
+            echo "::error::publish:openvsx: no OVSX_PAT. Open VSX was not published to; the GitHub release was. Create the namespace spin-stack on open-vsx.org and a token for it, set it as the repository secret OVSX_PAT, and run the Publish workflow again." >&2
+            exit 1
+          fi
+      # --skip-duplicate: a run that failed after Open VSX took it is run again whole.
+      - pnpm exec ovsx publish --skip-duplicate --packagePath {{.RELEASE}}/*.vsix
 
   gate:
     desc: What holds the repository's shape - every install through the firewall, and every workflow step a task.

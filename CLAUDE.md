@@ -2,13 +2,17 @@
 
 ## What this is
 
-`spin-stack/open-remote-ssh`, shown as Spinbox Remote: the VS Code extension that resolves the
+`spin-stack/open-remote-ssh`, the extension `spin-stack.spinbox-remote` shown as Spinbox Remote:
+the VS Code extension that resolves the
 `spin+<workspace>` remote authority, which the Spinbox extension (spin-stack/vscode-spinbox)
 opens workspaces through (spin-stack/vscode-spinbox#24). It began as a fork of
 developerz-ai/open-remote-ssh-tmux, itself a fork of jeanp413/open-remote-ssh, and keeps only
 what opening a Spinbox workspace uses: no `ssh-remote` resolver, ~/.ssh/config, password
 prompts, server download, tmux terminals or clipboard bridge. The editor it targets is
-Microsoft's VS Code: the server a Spinbox installation publishes is Microsoft's.
+Microsoft's VS Code, its current stable release (`engines.vscode`) and no older one: the server a
+Spinbox installation publishes is Microsoft's. The Marketplace refuses an extension using a
+proposed API, so a release is a VSIX on the GitHub release and on Open VSX (`.github/workflows/publish.yml`),
+which `spin vscode install` installs.
 
 A feature lands here when the Spinbox path calls it, with a test that reaches it through that
 path.
@@ -48,7 +52,7 @@ go tool task install     # pnpm through sfw; ssh2 patched as it installs
 go tool task lint        # biome
 go tool task typecheck   # tsc --noEmit
 go tool task test        # vitest
-go tool task package     # open-remote-ssh.vsix
+go tool task package     # spinbox-remote.vsix
 go tool task ci          # what CI's Gate runs
 go tool task test:e2e SPIN=<spin checkout> VSCODE_COMMIT=<commit>   # against spin's e2e stack
 ```

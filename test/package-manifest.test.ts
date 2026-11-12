@@ -32,9 +32,11 @@ describe('package.json', () => {
         expect(pkg.enabledApiProposals).toEqual(['resolvers']);
     });
 
-    it('contributes the commands the extension registers, each with its activation event', () => {
+    // VS Code activates an extension for a command it contributes by itself: an onCommand event
+    // beside it would be a second list to keep in step with the first.
+    it('contributes the commands the extension registers', () => {
         expect(pkg.contributes.commands.map(c => c.command)).toEqual([SHOW_LOG_COMMAND]);
-        expect(pkg.activationEvents).toContain(`onCommand:${SHOW_LOG_COMMAND}`);
+        expect(pkg.activationEvents).toEqual([`onResolveRemoteAuthority:${SPIN_AUTHORITY}`]);
     });
 
     it('declares the settings the code reads, and no other', () => {

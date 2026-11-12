@@ -1,0 +1,56 @@
+name: Publish
+
+# On a tag v*, a step a task: the VSIX packaged once and attached to the tag's GitHub release with
+# SHA256SUMS signed by this workflow, then published to Open VSX. The Marketplace refuses an
+# extension that uses a proposed API, so these two are where Spinbox Remote is released, and
+# `spin vscode install` downloads the GitHub release's VSIX, held to the digest spin pins. The
+# release comes first: it exists, and is installable, whether or not Open VSX is set up yet or
+# answers. OVSX_PAT is the token of the Open VSX namespace spin-stack.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions: {}
+
+concurrency:
+  group: publish-${{ github.ref }}
+  # A publish half done is finished by running it again, never by a second run cancelling it.
+  cancel-in-progress: false
+
+# go-tools' downloads (sfw, versions) ask GitHub with this: anonymous ones are the first it sheds
+# under load. It is the job's token, with only what its permissions grant.
+env:
+  GITHUB_TOKEN: ${{ github.token }}
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    permissions:
+      # The release and its files.
+      contents: write
+      # Keyless signing: cosign exchanges the job's ID token for a certificate naming this
+      # workflow at the tag.
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      # No store cache, as in ci.yml: Socket Firewall sees only what is asked of the registry.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: go tool task publish:check
+      - run: go tool task install
+      - run: go tool task publish:github
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+      - run: go tool task publish:openvsx
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
