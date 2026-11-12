@@ -611,7 +611,7 @@ export interface RemoteFolderUri {
  * yields `undefined` (wire nothing) rather than a made-up path.
  */
 export function deriveTmuxSessionContext(folder: RemoteFolderUri | undefined): { hostKey: string; workspaceKey: string } | undefined {
-    if (!folder || folder.scheme !== 'vscode-remote') {
+    if (folder?.scheme !== 'vscode-remote') {
         return undefined;
     }
     const prefix = `${REMOTE_SSH_AUTHORITY}+`;

@@ -193,8 +193,7 @@ export async function installCodeServer(
 
         // investigate if it's possible to use `-EncodedCommand` flag
         // https://devblogs.microsoft.com/powershell/invoking-powershell-with-complex-expressions-using-scriptblocks/
-        // eslint-disable-next-line no-useless-assignment
-        let command = '';
+        let command: string;
 
         if (shell === 'powershell') {
             command = `md -Force ${installDir}; echo @'\n${installServerScript}\n'@ | Set-Content ${installScript}; powershell -ExecutionPolicy ByPass -File "${installScript}"`;

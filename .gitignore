@@ -2,10 +2,6 @@
 *.ignore.ts
 /node_modules/
 /lib/
-/out/
 /.vscode-test/
 /*.vsix
-/package.insiders.json
-/vscode.d.ts
-/vscode.proposed.*.d.ts
-/tsconfig.tsbuildinfo
+/.wt/

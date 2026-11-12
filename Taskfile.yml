@@ -1,0 +1,54 @@
+version: '3'
+
+# The VS Code extension spin-stack.open-remote-ssh: TypeScript in src/, bundled by esbuild into
+# lib/, packaged by vsce. Every install goes through Socket Firewall (sfw), and every workflow
+# step is one of these tasks (taskgate), so a developer runs what CI runs.
+
+tasks:
+  install:
+    desc: Install the dependencies from the lockfile, through Socket Firewall (sfw). ssh2 is patched as pnpm installs it (patches/).
+    cmds:
+      - sfw pnpm install --frozen-lockfile
+
+  build:
+    desc: Bundle the extension into lib/extension.js.
+    cmds:
+      - pnpm build
+
+  lint:
+    desc: Lint with Biome.
+    cmds:
+      - pnpm lint
+
+  typecheck:
+    desc: Typecheck src/ and test/ with tsc.
+    cmds:
+      - pnpm typecheck
+
+  test:
+    desc: The unit tests - Vitest, with vscode replaced by test/mocks/vscode.ts.
+    cmds:
+      - pnpm test
+
+  package:
+    desc: Package the extension into open-remote-ssh.vsix with vsce.
+    cmds:
+      - task: build
+      - pnpm package
+
+  gate:
+    desc: What holds the repository's shape - every install through the firewall, and every workflow step a task.
+    cmds:
+      - sfw check
+      # The Task running this one, which taskgate asks for the task names.
+      - taskgate -task {{.TASK_EXE}}
+
+  ci:
+    desc: What CI's Gate job runs - the gate, the install, lint, typecheck, the unit tests, and the package.
+    cmds:
+      - task: gate
+      - task: install
+      - task: lint
+      - task: typecheck
+      - task: test
+      - task: package

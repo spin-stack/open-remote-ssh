@@ -110,7 +110,7 @@ export class RemoteLocationHistory {
 
 export function getRemoteWorkspaceLocationData(): [string, string] | undefined {
     const workspaceFile = vscode.workspace.workspaceFile;
-    if (workspaceFile && workspaceFile.path.endsWith('.code-workspace')) {
+    if (workspaceFile?.path.endsWith('.code-workspace')) {
         const data = remoteLocationFromUri(workspaceFile);
         if (data) {
             return data;

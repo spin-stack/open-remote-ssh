@@ -1,4 +1,0 @@
-./package.json:
-  - fixpack
-.github/workflows/*.yml: pipx run zizmor
-"*.ts": eslint

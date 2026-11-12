@@ -1,0 +1,41 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.3/schema.json",
+  // Most of src/ is jeanp413/open-remote-ssh's and developerz-ai/open-remote-ssh-tmux's, merged
+  // from upstream again and again: rewriting their style - indentation, quotes, import order,
+  // the rules below - would make every merge a conflict over what nobody changed. So the
+  // formatter is off, imports keep their order, and the rules that are only style are off;
+  // what is left of recommended holds every file, warnings included (package.json's lint).
+  "assist": { "actions": { "source": { "organizeImports": "off" } } },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        "useNodejsImportProtocol": "off",
+        "noNonNullAssertion": "off",
+        "useTemplate": "off",
+        "useImportType": "off"
+      },
+      "complexity": {
+        "useLiteralKeys": "off",
+        "useArrowFunction": "off"
+      },
+      "suspicious": {
+        // The server install scripts are templates whose ${...} the remote shell expands.
+        "noTemplateCurlyInString": "off"
+      }
+    }
+  },
+  "formatter": {
+    "enabled": false
+  },
+  "files": {
+    // src/typings is VS Code's proposed API, copied as Microsoft wrote it.
+    "includes": ["**", "!**/*.md", "!**/*.yaml", "!**/*.yml", "!!src/typings"]
+  },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  }
+}
