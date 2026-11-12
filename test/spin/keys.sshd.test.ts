@@ -66,11 +66,18 @@ beforeAll(async () => {
         'StrictModes no',
         `PidFile ${path.join(dir, 'sshd.pid')}`,
         'LogLevel ERROR',
-        // OpenSSH 9.8+ shuts out a source after failed logins, and the refusals below are failed
-        // logins from 127.0.0.1: without this, a test after them would meet a closed door.
-        'PerSourcePenalties no',
         '',
     ].join('\n'));
+    // OpenSSH 9.8+ shuts out a source after failed logins, and the refusals below are failed
+    // logins from 127.0.0.1: without this, a test after them would meet a closed door. An older
+    // sshd (Ubuntu 24.04's 9.6) has no penalties, and refuses the option.
+    fs.appendFileSync(path.join(dir, 'sshd_config'), 'PerSourcePenalties no\n');
+    try {
+        execFileSync('/usr/sbin/sshd', ['-t', '-f', path.join(dir, 'sshd_config')], { stdio: 'ignore' });
+    } catch {
+        const config = fs.readFileSync(path.join(dir, 'sshd_config'), 'utf8');
+        fs.writeFileSync(path.join(dir, 'sshd_config'), config.replace('PerSourcePenalties no\n', ''));
+    }
     sshd = spawn('/usr/sbin/sshd', ['-D', '-e', '-f', path.join(dir, 'sshd_config')], { stdio: ['ignore', 'ignore', 'pipe'] });
     let said = '';
     sshd.stderr?.on('data', (d: Buffer) => { said += d.toString(); });
