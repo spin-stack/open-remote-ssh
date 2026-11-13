@@ -4,35 +4,29 @@ import * as http from 'http';
 import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
-import { Server } from 'ssh2';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type * as vscodeTypes from 'vscode';
 import { activate } from '../../src/extension';
 import { configOverrides, env, ResolvedAuthority, RemoteAuthorityResolverError, resolvers, shownErrors } from '../mocks/vscode';
+import { keygen, type Sshd, startSshd } from '../sshd';
 
 // `spin+<workspace>` from the extension's activation to a request answered by the workspace's
 // server, with the CLI and the workspace standing in: a spin that answers `code` and
-// `ssh-session`, and carries `tunnel` to an ssh2 server that admits only the
-// workspace's certificate and answers the server start as the workspace would. What OpenSSH
-// makes of the certificate is keys.sshd.test.ts's, and what the real CLI and workspace do is
-// test/e2e's.
+// `ssh-session`, and carries `tunnel` to OpenSSH's sshd, set up as a workspace's (test/sshd.ts),
+// whose every exec answers the server start as the workspace would. The ssh is this machine's,
+// through a wrapper that records what it was run with and logs in as this user, the only one a
+// test's sshd lets in. What the real CLI and workspace do is test/e2e's.
 
 const COMMIT = '69047191fc427f2f92828279aae1d90d8eeda7ab';
 const TOKEN = 'the-servers-token';
-const CERT_TYPE = 'ssh-ed25519-cert-v01@openssh.com';
 const SESSION = 'ORWU6TGORHKIKCHPMWRLHNZSR4';
 
 let dir: string;
 let home: string;
 let fixture: string;
-let sshd: Server;
+let sshd: Sshd;
 let codeServer: http.Server;
-const savedHome = process.env.HOME;
-const said: string[] = [];
-
-function keygen(...args: string[]) {
-    execFileSync('ssh-keygen', ['-q', ...args], { stdio: 'ignore' });
-}
+const saved = { HOME: process.env.HOME, PATH: process.env.PATH };
 
 function listen(server: net.Server): Promise<number> {
     return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve((server.address() as net.AddressInfo).port)));
@@ -60,6 +54,22 @@ if (cmd === 'code' || cmd === 'ssh-session') {
 }
 `;
 
+// The ssh the resolver runs: this machine's, recording its arguments, as this user rather than
+// root. The rotation keeps every argument as one word.
+const sshWrapper = (real: string) => `#!/bin/sh
+[ "$1" = -V ] || printf '%s\\036' "$*" >> "$FAKE_SPIN_FIXTURE/ssh-calls"
+for a; do shift; case "$a" in root@*) set -- "$@" "$TEST_SSH_USER@\${a#root@}";; *) set -- "$@" "$a";; esac; done
+exec ${real} "$@"
+`;
+
+// The workspace's every exec: the server start's answer, for the id the script names, and what it
+// was asked kept in said.
+const FORCE_COMMAND = (codePort: number) => `#!/bin/sh
+printf '%s\\n' "$SSH_ORIGINAL_COMMAND" >> "${fixture}/said"
+id=$(printf '%s\\n' "$SSH_ORIGINAL_COMMAND" | sed -n 's/.*echo "\\(spinbox-[0-9a-f]*\\): start".*/\\1/p' | head -n 1)
+printf '%s: start\\nexitCode==0==\\nlisteningOn==%s==\\nconnectionToken==%s==\\n%s: end\\n' "$id" ${codePort} ${TOKEN} "$id"
+`;
+
 function answerCode(answer: unknown, exit = 0) {
     fs.writeFileSync(path.join(fixture, 'code.json'), JSON.stringify({ answer, exit }));
 }
@@ -75,65 +85,49 @@ function calls(): string[][] {
     return fs.readFileSync(path.join(fixture, 'calls'), 'utf8').trim().split('\n').map(l => JSON.parse(l) as string[]);
 }
 
+/** Each run of ssh, its arguments in a line - the server's start a script of several - ended by \x1e. */
+function sshCalls(): string[] {
+    return fs.readFileSync(path.join(fixture, 'ssh-calls'), 'utf8').split('\x1e').filter(Boolean);
+}
+
 beforeAll(async () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'spin-resolve-'));
     home = path.join(dir, 'home');
     fixture = path.join(dir, 'fixture');
     fs.mkdirSync(path.join(home, '.ssh'), { recursive: true });
-    fs.mkdirSync(fixture);
+    fs.mkdirSync(path.join(fixture, 'bin'), { recursive: true });
     const identity = path.join(home, '.ssh', 'id_ed25519');
+    const user = os.userInfo().username;
     keygen('-t', 'ed25519', '-N', '', '-f', identity);
     keygen('-t', 'ed25519', '-N', '', '-f', path.join(fixture, 'ca'));
     keygen('-t', 'ed25519', '-N', '', '-f', path.join(fixture, 'host'));
-    keygen('-s', path.join(fixture, 'ca'), '-I', 'spin-test', '-n', 'root', '-V', '+5m', `${identity}.pub`);
+    // For this user, whom the wrapper logs in as: a workspace's certificate names root.
+    keygen('-s', path.join(fixture, 'ca'), '-I', 'spin-test', '-n', user, '-V', '+5m', `${identity}.pub`);
     fs.renameSync(`${identity}-cert.pub`, path.join(fixture, 'user-cert.pub'));
     opensSession = () => answerSession({
         workspace_id: 'w1', session: SESSION, identity,
         certificate: fs.readFileSync(path.join(fixture, 'user-cert.pub'), 'utf8').trim(),
         host_key: fs.readFileSync(path.join(fixture, 'host.pub'), 'utf8').trim().split(' ').slice(0, 2).join(' '),
     });
-    const certBlob = Buffer.from(fs.readFileSync(path.join(fixture, 'user-cert.pub'), 'utf8').split(' ')[1], 'base64');
 
     codeServer = http.createServer((req, res) => {
         res.writeHead(req.url === `/version?tkn=${TOKEN}` ? 200 : 403).end(COMMIT);
     });
     const codePort = await listen(codeServer);
+    fs.writeFileSync(path.join(fixture, 'workspace.sh'), FORCE_COMMAND(codePort), { mode: 0o755 });
+    sshd = await startSshd(fixture, 'sshd', { forceCommand: path.join(fixture, 'workspace.sh') });
+    fs.writeFileSync(path.join(fixture, 'port'), String(sshd.port));
 
-    sshd = new Server({ hostKeys: [fs.readFileSync(path.join(fixture, 'host'))] }, client => {
-        client.on('authentication', ctx => {
-            if (ctx.method === 'publickey' && ctx.username === 'root' && ctx.key.algo === CERT_TYPE && ctx.key.data.equals(certBlob)) {
-                return ctx.accept();
-            }
-            ctx.reject(['publickey']);
-        }).on('ready', () => {
-            client.on('session', accept => {
-                accept().on('exec', (acceptExec, _reject, info) => {
-                    said.push(info.command);
-                    const id = /echo "(spinbox-[0-9a-f]+): start"/.exec(info.command)?.[1];
-                    const stream = acceptExec();
-                    stream.write(`${id}: start\nexitCode==0==\nlisteningOn==${codePort}==\nconnectionToken==${TOKEN}==\n${id}: end\n`);
-                    stream.exit(0);
-                    stream.end();
-                });
-            }).on('tcpip', (acceptTcp, reject, info) => {
-                if (info.destIP !== '127.0.0.1' || info.destPort !== codePort) {
-                    reject();
-                    return;
-                }
-                const channel = acceptTcp();
-                const socket = net.connect(codePort, '127.0.0.1');
-                channel.pipe(socket).pipe(channel);
-            });
-        }).on('error', () => undefined);
-    });
-    fs.writeFileSync(path.join(fixture, 'port'), String(await listen(sshd as unknown as net.Server)));
-
+    const real = execFileSync('sh', ['-c', 'command -v ssh'], { encoding: 'utf8' }).trim();
+    fs.writeFileSync(path.join(fixture, 'bin', 'ssh'), sshWrapper(real), { mode: 0o755 });
     const spin = path.join(fixture, 'spin');
     fs.writeFileSync(spin, FAKE_SPIN, { mode: 0o755 });
     env.appCommit = COMMIT;
     configOverrides.set('remote.spin.cliPath', spin);
     process.env.HOME = home;
+    process.env.PATH = `${path.join(fixture, 'bin')}:${saved.PATH}`;
     process.env.FAKE_SPIN_FIXTURE = fixture;
+    process.env.TEST_SSH_USER = user;
     // Each test asserts on its own resolve: the subscriptions are disposed in afterAll.
     activate(context);
 }, 30_000);
@@ -141,7 +135,9 @@ beforeAll(async () => {
 const context = { subscriptions: [] as { dispose(): unknown }[] } as unknown as vscodeTypes.ExtensionContext;
 
 afterEach(() => {
-    fs.rmSync(path.join(fixture, 'calls'), { force: true });
+    for (const f of ['calls', 'ssh-calls']) {
+        fs.rmSync(path.join(fixture, f), { force: true });
+    }
     shownErrors.length = 0;
 });
 
@@ -149,10 +145,12 @@ afterAll(async () => {
     for (const s of context.subscriptions) {
         s.dispose();
     }
-    process.env.HOME = savedHome;
+    process.env.HOME = saved.HOME;
+    process.env.PATH = saved.PATH;
     delete process.env.FAKE_SPIN_FIXTURE;
+    delete process.env.TEST_SSH_USER;
     configOverrides.clear();
-    sshd?.close();
+    sshd?.process.kill();
     codeServer?.close();
     fs.rmSync(dir, { recursive: true, force: true });
 });
@@ -192,7 +190,17 @@ describe('spin+<workspace>', () => {
             ['ssh-session', 'unit-ws', '-o', 'json'],
             ['tunnel', SESSION],
         ]);
-        expect(said[said.length - 1]).toContain(`/run/spin-stack/vsc-${COMMIT.slice(0, 12)}/servers/${COMMIT}/server/bin/code-server`);
+        const said = fs.readFileSync(path.join(fixture, 'said'), 'utf8');
+        expect(said).toContain(`/run/spin-stack/vsc-${COMMIT.slice(0, 12)}/servers/${COMMIT}/server/bin/code-server`);
+        // Every ssh - the login, the server's start, the request's way in - asked for ML-KEM alone
+        // and held the workspace to the claim's key.
+        const ran = sshCalls();
+        expect(ran.length).toBeGreaterThanOrEqual(3);
+        for (const run of ran) {
+            expect(run).toContain('-o KexAlgorithms=mlkem768x25519-sha256');
+            expect(run).toContain('-o StrictHostKeyChecking=yes');
+        }
+        expect(ran.some(r => /-W 127\.0\.0\.1:\d+ root@/.test(r)), 'the request went through ssh -W').toBe(true);
     }, 30_000);
 
     it('refuses a workspace that answers with another host key than the session\'s', async () => {
@@ -218,6 +226,28 @@ describe('spin+<workspace>', () => {
         expect((failed as RemoteAuthorityResolverError).temporary).toBe(false);
         expect(shownErrors).toEqual([['Spinbox could not open unit-ws: this machine\'s key is not enrolled', { modal: true }, 'Add This Machine\'s Key']]);
         expect(calls().map(c => c[0])).toEqual(ran);
+    }, 30_000);
+
+    it('refuses an ssh older than OpenSSH 9.9 before running anything, and says why', async () => {
+        const old = path.join(dir, 'old');
+        fs.mkdirSync(old, { recursive: true });
+        fs.writeFileSync(path.join(old, 'ssh'), '#!/bin/sh\necho \'OpenSSH_9.6p1 Ubuntu-3ubuntu13.20, OpenSSL 3.0.13 30 Jan 2024\' >&2\n', { mode: 0o755 });
+        const path_ = process.env.PATH;
+        process.env.PATH = `${old}:${saved.PATH}`;
+        try {
+            const failed = await resolve('spin+unit-ws').catch((e: unknown) => e);
+            expect(failed).toBeInstanceOf(RemoteAuthorityResolverError);
+            expect((failed as RemoteAuthorityResolverError).temporary).toBe(false);
+        } finally {
+            process.env.PATH = path_;
+        }
+        expect(shownErrors).toEqual([[
+            'Spinbox could not open unit-ws: ssh is OpenSSH 9.6 (OpenSSH_9.6p1 Ubuntu-3ubuntu13.20); a workspace needs OpenSSH 9.9 or newer. '
+            + 'Its sshd accepts only the post-quantum key exchange mlkem768x25519-sha256, which OpenSSH added in 9.9, and refuses older '
+            + 'clients. Update OpenSSH (on macOS, \'brew install openssh\') and open the workspace again.',
+            { modal: true },
+        ]]);
+        expect(fs.existsSync(path.join(fixture, 'calls')), 'the CLI was asked for a workspace this ssh cannot reach').toBe(false);
     }, 30_000);
 
     it('refuses an authority that is not a workspace before running anything', async () => {

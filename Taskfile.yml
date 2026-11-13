@@ -12,7 +12,7 @@ vars:
 
 tasks:
   install:
-    desc: Install the dependencies from the lockfile, through Socket Firewall (sfw). ssh2 is patched as pnpm installs it (patches/).
+    desc: Install the dependencies from the lockfile, through Socket Firewall (sfw).
     cmds:
       - sfw pnpm install --frozen-lockfile
 

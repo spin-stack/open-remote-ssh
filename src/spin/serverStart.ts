@@ -105,6 +105,6 @@ export function shCommand(script: string): string {
 }
 
 /** value as one POSIX shell word: single-quoted, each ' inside closed, escaped and reopened. */
-function escapeShellArg(value: string): string {
+export function escapeShellArg(value: string): string {
     return `'${value.replace(/'/g, `'\\''`)}'`;
 }
