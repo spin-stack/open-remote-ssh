@@ -29,8 +29,7 @@ updates:
     commit-message:
       prefix: "deps"
 
-  # pnpm, which this ecosystem reads. ssh2 is held at the version patches/ is made for: a bump of
-  # it fails test/ssh2.security.test.ts until the patch is made again for the new version.
+  # pnpm, which this ecosystem reads.
   - package-ecosystem: npm
     directory: /
     schedule:
@@ -38,8 +37,6 @@ updates:
       day: monday
     cooldown:
       default-days: 7
-    ignore:
-      - dependency-name: ssh2
     groups:
       js:
         patterns: ["*"]

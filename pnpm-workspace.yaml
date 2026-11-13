@@ -10,13 +10,3 @@ allowBuilds:
   # Its postinstall picks the platform's vsce-sign binary, which signs a package for the
   # Marketplace: vsce package runs without it, and nothing here signs yet.
   '@vscode/vsce-sign': false
-  # ssh2 builds an optional native crypto binding and cpu-features probes the CPU; the bundle
-  # leaves both out (esbuild.mjs) and ssh2 falls back to Node's crypto, so neither is built.
-  ssh2: false
-  cpu-features: false
-
-# ssh2 1.17.0 still lacks the ECDSA signature fix jeanp413's ssh2 fork carried (patches/ has it,
-# and test/ssh2.security.test.ts holds the installed tree to it). Keyed by the exact version:
-# a bump installs unpatched until the patch is made again for it, which that test refuses.
-patchedDependencies:
-  ssh2@1.17.0: patches/ssh2@1.17.0.patch

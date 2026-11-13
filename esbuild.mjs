@@ -1,6 +1,4 @@
-// Bundles the extension into lib/extension.js. vscode is VS Code's own, never bundled. ssh2's
-// native crypto binding and cpu-features are optional: ssh2 requires each inside a try and falls
-// back to Node's crypto, so leaving them external ships a bundle with no native code.
+// Bundles the extension into lib/extension.js. vscode is VS Code's own, never bundled.
 import { build } from "esbuild"
 
 await build({
@@ -10,7 +8,7 @@ await build({
   platform: "node",
   format: "cjs",
   target: "node22",
-  external: ["vscode", "cpu-features", "*.node"],
+  external: ["vscode"],
   sourcemap: false,
   minify: true,
   logLevel: "warning",

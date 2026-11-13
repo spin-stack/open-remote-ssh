@@ -11,22 +11,43 @@ workspace uses.
 
 ## How a workspace opens
 
+- `ssh -V` says this machine's OpenSSH is 9.9 or newer (below);
 - `spin code <workspace> --no-open --vscode-commit <this editor's commit> --start` has the
   workspace running with the VS Code server for this commit on the extension disk the
   installation publishes;
 - `spin ssh-session -o json` opens a session, checking the workspace's launch claim, and answers
   the host key it names, the certificate the workspace signed for this machine's key and the
-  session's name; the connection is carried by `spin tunnel <session>`, accepts that host key
-  only, and logs in with that certificate;
+  session's name; this machine's `ssh` connects, carried by `spin tunnel <session>` as its
+  ProxyCommand, accepts that host key only, and logs in with that certificate - one connection
+  (a ControlMaster) that everything after rides on;
 - the server is started from the extension disk, and **never downloaded**: a workspace
   without it is refused with what to do;
-- VS Code reaches the server through a port on this machine's loopback;
+- VS Code reaches the server through a port on this machine's loopback, each of its
+  connections an `ssh -W` through that one;
 - whatever refuses - a key the installation has not enrolled (`Spin-Refused:
   key-not-enrolled`), a profile not signed in, an installation that does not answer - is shown
   in VS Code with the CLI's words and the one thing to do.
 
 The CLI is the setting `remote.spin.cliPath`, or the one the Spinbox extension carries, or `spin`
 on the PATH. `Spinbox: Show Connection Log` shows what each open did.
+
+### OpenSSH 9.9 or newer, on Linux or macOS
+
+A workspace's sshd accepts one key exchange, the post-quantum `mlkem768x25519-sha256`, which
+OpenSSH added in 9.9, and refuses an older client with `no matching key exchange method found`.
+The `ssh` on the PATH is asked its version first, and an older one is refused before anything
+else runs, in VS Code:
+
+```
+Spinbox could not open my-workspace: ssh is OpenSSH 9.6 (OpenSSH_9.6p1 Ubuntu-3ubuntu13.20); a
+workspace needs OpenSSH 9.9 or newer. Its sshd accepts only the post-quantum key exchange
+mlkem768x25519-sha256, which OpenSSH added in 9.9, and refuses older clients. Update OpenSSH (on
+macOS, 'brew install openssh') and open the workspace again.
+```
+
+An `ssh -V` it cannot read is let through, with a line in the log. The connection reads none of
+your `~/.ssh/config`. Windows is refused: there is no spin CLI for it, and OpenSSH for Windows
+has no ControlMaster.
 
 ## Install
 

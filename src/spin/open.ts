@@ -1,15 +1,15 @@
 // Opens a Spinbox workspace for VS Code, with no VS Code in it so the e2e harness drives it as
-// the resolver does: the workspace running with this commit's server (`spin code`), a session
-// opened by the CLI (`spin ssh-session`), ssh2 over the CLI's tunnel (`spin tunnel`) held to the
-// launch claim's host key and authenticated by the workspace's certificate, and the server
-// started from the extension disk. Every refusal is a SpinRefusal saying what to do.
+// the resolver does: this machine's OpenSSH asked whether it can connect at all, the workspace
+// running with this commit's server (`spin code`), a session opened by the CLI
+// (`spin ssh-session`), ssh over the CLI's tunnel (`spin tunnel`) held to the launch claim's host
+// key and authenticated by the workspace's certificate, and the server started from the extension
+// disk. Every refusal is a SpinRefusal saying what to do.
 
 import * as crypto from 'crypto';
-import * as fs from 'fs';
-import type { ConnectConfig } from 'ssh2';
 import type { SpinCli } from './cli';
 import SSHConnection from './connection';
-import { certificateKey, offerOnce, parseHostKey, parsePrivateKey, pinnedHostVerifier } from './keys';
+import { parseHostKey } from './keys';
+import { checkOpenSSH } from './openssh';
 import { refusalOf, SpinRefusal } from './refusal';
 import { readServerStart, serverStartScript, ServerStartError, shCommand } from './serverStart';
 
@@ -34,6 +34,20 @@ export interface OpenedWorkspace {
 const WORKSPACE_USER = 'root';
 
 export async function openWorkspace(o: OpenOptions): Promise<OpenedWorkspace> {
+    // Before the workspace is started for a connection that could not be made.
+    if (process.platform === 'win32') {
+        throw new SpinRefusal({
+            code: 'platform_unsupported',
+            message: 'Spinbox opens workspaces from Linux and macOS: the spin CLI is built for those alone, '
+                + 'and OpenSSH for Windows has no ControlMaster, which the connection to the server rides on.',
+            temporary: false,
+        });
+    }
+    const ssh = await checkOpenSSH(o.cli.env);
+    if (ssh.warning) {
+        o.log(ssh.warning);
+    }
+
     o.log(`spin code ${o.workspace} (VS Code ${o.version ?? ''} ${o.commit})`);
     const answer = await o.cli.code({ workspace: o.workspace, commit: o.commit, version: o.version, start: o.start });
     if ('error' in answer) {
@@ -54,16 +68,15 @@ export async function openWorkspace(o: OpenOptions): Promise<OpenedWorkspace> {
     if ('error' in session) {
         throw new SpinRefusal(refusalOf(session.error));
     }
-    const { identity, certificate, host_key: hostKey } = session.ok;
-    const pinned = parseHostKey(hostKey);
-    const key = certificateKey(parsePrivateKey(fs.readFileSync(identity), identity), certificate);
     const connection = new SSHConnection({
-        sock: o.cli.tunnel(session.ok.session, line => o.log(`spin tunnel: ${line}`)),
-        username: WORKSPACE_USER,
-        readyTimeout: o.readyTimeoutMs ?? 60_000,
-        strictVendor: false,
-        hostVerifier: pinnedHostVerifier(pinned) as unknown as ConnectConfig['hostVerifier'],
-        authHandler: offerOnce(WORKSPACE_USER, key),
+        user: WORKSPACE_USER,
+        proxyCommand: o.cli.tunnelCommand(session.ok.session),
+        identity: session.ok.identity,
+        certificate: session.ok.certificate,
+        hostKey: parseHostKey(session.ok.host_key),
+        env: o.cli.env,
+        log: o.log,
+        readyTimeoutMs: o.readyTimeoutMs ?? 60_000,
     });
     try {
         await connection.connect();

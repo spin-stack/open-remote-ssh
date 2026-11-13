@@ -59,7 +59,7 @@ async function refusalOf(p: Promise<OpenedWorkspace>) {
 
 /** An HTTP request to the server through the connection, answering its status line. */
 async function statusLine(o: OpenedWorkspace): Promise<string> {
-    const channel = await o.connection.forwardOut('127.0.0.1', 0, '127.0.0.1', o.port);
+    const channel = await o.connection.forwardOut(o.port);
     return new Promise((resolve, reject) => {
         let data = '';
         channel.on('data', (d: Buffer) => { data += d.toString(); });

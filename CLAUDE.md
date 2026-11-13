@@ -25,11 +25,12 @@ path.
 | `src/logger.ts` | The output channel. |
 | `src/spin/authority.ts` | `spin+<workspace>` parsed. |
 | `src/spin/resolver.ts` | The VS Code resolver: this editor's commit, progress, the local port, a refusal shown with its action. |
-| `src/spin/open.ts` | The flow, with no VS Code in it so `test/e2e` drives it: `spin code`, `spin ssh-session`, ssh2 over `spin tunnel`, the server started. |
+| `src/spin/open.ts` | The flow, with no VS Code in it so `test/e2e` drives it: the OpenSSH checked, `spin code`, `spin ssh-session`, ssh over `spin tunnel`, the server started. |
 | `src/spin/cli.ts` | The spin CLI, the only client of an installation. |
 | `src/spin/contract.ts` | The CLI's JSON answers. |
-| `src/spin/keys.ts` | The workspace's certificate as an ssh2 key; the host key pinned to the launch claim's, as ssh-session answers it. |
-| `src/spin/connection.ts` | The ssh2 connection: exec, a channel, the loopback port to the server. |
+| `src/spin/openssh.ts` | The ssh on the PATH held to OpenSSH 9.9 or newer: the one key exchange a workspace accepts, `mlkem768x25519-sha256`. |
+| `src/spin/keys.ts` | The host key pinned to the launch claim's, as ssh-session answers it. |
+| `src/spin/connection.ts` | The system `ssh`: a ControlMaster over `spin tunnel`, exec through it, and the loopback port to the server (`ssh -W`). |
 | `src/spin/serverStart.ts` | The server from the extension disk, never downloaded, and its answer read. |
 | `src/spin/refusal.ts` | What a person is shown. |
 | `src/typings/` | VS Code's proposed `resolvers` API, as Microsoft wrote it. |
@@ -47,7 +48,7 @@ path.
 ## Build & verify
 
 ```bash
-go tool task install     # pnpm through sfw; ssh2 patched as it installs
+go tool task install     # pnpm through sfw
 go tool task lint        # biome
 go tool task typecheck   # tsc --noEmit
 go tool task test        # vitest

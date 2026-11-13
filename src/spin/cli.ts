@@ -1,11 +1,11 @@
 // The spin CLI, the resolver's only client of a Spinbox installation: `spin code` to have the
 // workspace running with the server for this editor's commit, `spin ssh-session` to open a
-// session into it, and `spin tunnel` to carry the connection. The CLI keeps the credentials;
-// this extension holds none.
+// session into it, and `spin tunnel` to carry the connection, as ssh's ProxyCommand. The CLI
+// keeps the credentials; this extension holds none.
 
 import { spawn } from 'child_process';
-import { Duplex } from 'stream';
 import { type Answer, type CodeResult, readCodeAnswer, readSessionAnswer, type SessionResult } from './contract';
+import { escapeShellArg } from './serverStart';
 
 export interface CodeOptions {
     workspace: string;
@@ -25,7 +25,8 @@ interface Ran {
 export class SpinCli {
     constructor(
         private readonly binary: string,
-        private readonly env: NodeJS.ProcessEnv = process.env,
+        /** The CLI's environment, and the ssh's that runs it as ProxyCommand. */
+        readonly env: NodeJS.ProcessEnv = process.env,
     ) { }
 
     private run(args: string[], timeoutMs: number): Promise<Ran> {
@@ -76,15 +77,11 @@ export class SpinCli {
         return readSessionAnswer(ran.stdout, ran.stderr, ran.exitCode);
     }
 
-    /** The connection to the workspace's sshd, carried by `spin tunnel` over the session ssh-session opened. */
-    tunnel(session: string, onStderr: (line: string) => void): Duplex {
-        const child = spawn(this.binary, ['tunnel', session], { env: this.env, stdio: ['pipe', 'pipe', 'pipe'] });
-        child.stderr.on('data', (d: Buffer) => d.toString().split(/\r?\n/).filter(Boolean).forEach(onStderr));
-        const stream = Duplex.from({ readable: child.stdout, writable: child.stdin });
-        // The proxy outlives nothing it carries: closing the stream ends it, and its end the stream.
-        stream.on('close', () => child.kill());
-        child.on('exit', () => stream.destroy());
-        child.on('error', e => stream.destroy(e));
-        return stream;
+    /**
+     * ssh's ProxyCommand that carries the session ssh-session opened: `spin tunnel <session>`, as
+     * the shell ssh runs it through reads it back.
+     */
+    tunnelCommand(session: string): string {
+        return `${escapeShellArg(this.binary)} tunnel ${escapeShellArg(session)}`;
     }
 }
