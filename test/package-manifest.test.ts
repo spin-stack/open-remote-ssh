@@ -12,7 +12,7 @@ const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'package.js
     activationEvents: string[];
     enabledApiProposals: string[];
     contributes: {
-        configuration: { properties: Record<string, unknown> };
+        configuration: { properties: Record<string, { scope?: string }> };
         commands: { command: string }[];
         resourceLabelFormatters: { authority: string }[];
     };
@@ -43,5 +43,15 @@ describe('package.json', () => {
         const src = sources();
         const read = [...src.matchAll(/getConfiguration\('([\w.]+)'\)\.get<\w+>\('([\w.]+)'/g)].map(m => `${m[1]}.${m[2]}`);
         expect(Object.keys(pkg.contributes.configuration.properties).sort()).toEqual([...new Set(read)].sort());
+    });
+
+    // Every setting is of the machine the resolver runs on, which is the window's own and never
+    // the workspace's: application scope is read from the person's settings in every window. A
+    // machine one is not, once the window is remote: VS Code reconnecting a dropped window read
+    // remote.spin.cliPath as empty and ran another spin (test:spin-remote in vscode-spinbox).
+    it('scopes every setting to the application', () => {
+        for (const [name, setting] of Object.entries(pkg.contributes.configuration.properties)) {
+            expect(setting.scope, name).toBe('application');
+        }
     });
 });
