@@ -45,7 +45,7 @@
 				"remote.spin.cliPath": {
 					"type": "string",
 					"markdownDescription": "The spin CLI that opens Spinbox workspaces (`spin+<workspace>`). Empty runs the one the Spinbox extension carries, or else `spin` on the PATH.",
-					"scope": "machine",
+					"scope": "application",
 					"default": ""
 				}
 			}
