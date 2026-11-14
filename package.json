@@ -2,7 +2,7 @@
 	"name": "spinbox-remote",
 	"displayName": "Spinbox Remote",
 	"description": "Opens Spinbox workspaces in VS Code: the spin+<workspace> remote, through the spin CLI.",
-	"version": "2.0.0",
+	"version": "2.1.0",
 	"publisher": "spin-stack",
 	"license": "MIT",
 	"private": true,
