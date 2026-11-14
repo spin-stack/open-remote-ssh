@@ -1,7 +1,7 @@
 version: '3'
 
 # The VS Code extension spin-stack.spinbox-remote: TypeScript in src/, bundled by esbuild into
-# lib/, packaged by vsce. Every install goes through Socket Firewall (sfw), and every workflow
+# lib/, packaged into a VSIX by hack/vsix. Every install goes through Socket Firewall (sfw), and every workflow
 # step is one of these tasks (taskgate), so a developer runs what CI runs.
 
 vars:
@@ -32,9 +32,10 @@ tasks:
       - pnpm typecheck
 
   test:
-    desc: The unit tests - Vitest, with vscode replaced by test/mocks/vscode.ts, and coverage held to the floor in vitest.config.ts.
+    desc: The unit tests - Vitest, with vscode replaced by test/mocks/vscode.ts, and coverage held to the floor in vitest.config.ts - and hack/'s Go.
     cmds:
       - pnpm test
+      - go test ./hack/...
 
   coverage:summary:
     desc: The coverage task test left in coverage/, as the job's summary (hack/coverage-summary.mjs); the HTML is coverage/index.html.
@@ -57,10 +58,11 @@ tasks:
       - pnpm test:e2e
 
   package:
-    desc: Package the extension into spinbox-remote.vsix with vsce.
+    desc: Package the extension into spinbox-remote.vsix with hack/vsix, the same bytes for the same files.
     cmds:
       - task: build
-      - pnpm package
+      # Everything the package holds: the rest of the checkout is how it is built and tested.
+      - go run ./hack/vsix -out spinbox-remote.vsix package.json LICENSE.txt README.md lib/extension.js resources/icon.png
 
   # The Marketplace refuses an extension that uses a proposed API (resolvers), so a release is
   # the GitHub release, which `spin vscode install` downloads and holds to the digest spin's

@@ -76,7 +76,7 @@ server, so the editor is Microsoft's VS Code. Whether its stable release honours
 
 ## Developing
 
-[CONTRIBUTING.md](CONTRIBUTING.md): Go (for `go tool task`), Node 22 and pnpm, and
+[CONTRIBUTING.md](https://github.com/spin-stack/open-remote-ssh/blob/HEAD/CONTRIBUTING.md): Go (for `go tool task`), Node 22 and pnpm, and
 `go tool task ci` runs what CI runs.
 
 ## Credit
@@ -86,5 +86,5 @@ This extension is a fork of
 itself a fork of [jeanp413/open-remote-ssh](https://github.com/jeanp413/open-remote-ssh), which
 resolves the `ssh-remote` authority over SSH; the connection here began as their
 `SSHConnection`, and the server's answer is read as their install script writes it. Both are MIT
-licensed, and their copyright notices are kept in [LICENSE.txt](LICENSE.txt), as is this
+licensed, and their copyright notices are kept in [LICENSE.txt](https://github.com/spin-stack/open-remote-ssh/blob/HEAD/LICENSE.txt), as is this
 fork's licence.
