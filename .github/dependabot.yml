@@ -41,5 +41,11 @@ updates:
       js:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      # The types of the oldest Node the code runs on: the tests' Node 22 (setup-node in the
+      # workflows); VS Code's extension host is newer (Node 24 in 1.146). A newer major's types
+      # let through an API neither has. Moved by hand, with node-version.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "deps"
