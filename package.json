@@ -23,7 +23,7 @@
 		"lint": "biome check --error-on-warnings .",
 		"lint:fix": "biome check --write --error-on-warnings .",
 		"typecheck": "tsc --noEmit",
-		"test": "vitest run",
+		"test": "vitest run --coverage",
 		"test:e2e": "vitest run --config vitest.e2e.config.mts",
 		"package": "vsce package --no-dependencies --out spinbox-remote.vsix"
 	},
@@ -31,6 +31,7 @@
 		"@biomejs/biome": "2.6.3",
 		"@types/node": "22.20.5",
 		"@types/vscode": "1.146.0",
+		"@vitest/coverage-v8": "5.0.5",
 		"@vscode/vsce": "4.1.0",
 		"esbuild": "0.28.2",
 		"typescript": "7.0.2",
