@@ -32,9 +32,14 @@ tasks:
       - pnpm typecheck
 
   test:
-    desc: The unit tests - Vitest, with vscode replaced by test/mocks/vscode.ts.
+    desc: The unit tests - Vitest, with vscode replaced by test/mocks/vscode.ts, and coverage held to the floor in vitest.config.ts.
     cmds:
       - pnpm test
+
+  coverage:summary:
+    desc: The coverage task test left in coverage/, as the job's summary (hack/coverage-summary.mjs); the HTML is coverage/index.html.
+    cmds:
+      - node hack/coverage-summary.mjs
 
   test:e2e:
     desc: >-
