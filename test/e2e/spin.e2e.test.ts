@@ -30,6 +30,11 @@ const stopped = process.env.SPIN_E2E_STOPPED ?? 'e2e-stopped';
 // would find it on a machine of theirs.
 const sshShim = fs.mkdtempSync(path.join(os.tmpdir(), 'spin-e2e-ssh-'));
 fs.writeFileSync(path.join(sshShim, 'ssh'), '#!/bin/sh\nexec /usr/bin/ssh -F "$HOME/.ssh/config" "$@"\n', { mode: 0o755 });
+// A browser that opens nothing: the CLI opens the page a passkey confirms on, and no test opens
+// one on the machine that runs it.
+for (const name of ['xdg-open', 'open']) {
+    fs.writeFileSync(path.join(sshShim, name), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+}
 
 function cliFor(h: string) {
     return new SpinCli(cliPath, {
@@ -105,18 +110,28 @@ describe('a Spinbox workspace through the real CLI', () => {
         expect(refusal.message).toMatch(/stopped/i);
     }, 5 * 60_000);
 
-    it('says a key the installation does not know is not enrolled, with where to add it', async () => {
-        // The same person on a machine whose only key nobody enrolled.
+    // spin#1253: the CLI adds a machine's key with the person's passkey rather than be refused for
+    // it, and says so while it waits; the open says it where the person looks.
+    it('waits, on a machine whose key nobody added, for the passkey that adds it, and says so', async () => {
+        // The same person on a machine whose only key nobody added.
         const stranger = fs.mkdtempSync(path.join(os.tmpdir(), 'spin-e2e-stranger-'));
         fs.mkdirSync(path.join(stranger, '.ssh'), { mode: 0o700 });
         fs.cpSync(path.join(home, '.spin', 'config.yaml'), path.join(stranger, '.spin', 'config.yaml'));
         fs.cpSync(path.join(home, '.trust'), path.join(stranger, '.trust'), { recursive: true });
         execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', path.join(stranger, '.ssh', 'id_ed25519')]);
+        const said: string[] = [];
+        const cancelled = new AbortController();
         try {
-            const refusal = await refusalOf(open(running, stranger));
-            expect(refusal.code).toBe('key_not_enrolled');
-            expect(refusal.action?.title).toBe('Add This Machine\'s Key');
-            expect(refusal.action?.url).toMatch(/\/settings\/keys/);
+            await expect(openWorkspace({
+                cli: cliFor(stranger), workspace: running, commit, start: true, signal: cancelled.signal,
+                log: line => console.log(line),
+                say: message => {
+                    said.push(message);
+                    cancelled.abort();
+                },
+            })).rejects.toThrow(/cancelled/);
+            expect(said).toHaveLength(1);
+            expect(said[0]).toMatch(/^Confirm with your passkey, in the browser page spin opened, that .+ connects to your workspaces$/);
         } finally {
             fs.rmSync(stranger, { recursive: true, force: true });
         }

@@ -6,6 +6,7 @@ export const version = '1.146.0';
 
 export const env = {
     appCommit: undefined as string | undefined,
+    isTelemetryEnabled: false,
     openExternal(_uri: unknown): Promise<boolean> {
         return Promise.resolve(true);
     },
@@ -13,6 +14,12 @@ export const env = {
 
 /** Settings a test sets, by their whole id (remote.spin.cliPath); the rest are their defaults. */
 export const configOverrides = new Map<string, unknown>();
+
+/** What a resolve said in its progress, in order. */
+export const reported: string[] = [];
+
+/** Whether a progress is cancelled by the person as soon as it says something, as one who reads it and gives up. */
+export const progress = { cancelOnReport: false };
 
 /** The resolvers activate registered, by authority. */
 export const resolvers = new Map<string, unknown>();
@@ -59,8 +66,29 @@ export const window = {
     createOutputChannel(name: string): MockOutputChannel {
         return new MockOutputChannel(name);
     },
-    withProgress<T>(_options: unknown, task: () => Promise<T>): Promise<T> {
-        return task();
+    withProgress<T>(
+        _options: unknown,
+        task: (p: { report(value: { message?: string }): void }, token: { onCancellationRequested(listener: () => void): { dispose(): void } }) => Promise<T>,
+    ): Promise<T> {
+        const cancelled: (() => void)[] = [];
+        const token = {
+            onCancellationRequested(listener: () => void) {
+                cancelled.push(listener);
+                return { dispose() { } };
+            },
+        };
+        return task({
+            report: value => {
+                if (value.message) {
+                    reported.push(value.message);
+                    if (progress.cancelOnReport) {
+                        for (const listener of cancelled) {
+                            listener();
+                        }
+                    }
+                }
+            },
+        }, token);
     },
     showErrorMessage(message: string, ...items: unknown[]): Promise<unknown> {
         shownErrors.push([message, ...items]);

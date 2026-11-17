@@ -41,7 +41,10 @@ describe('package.json', () => {
 
     it('declares the settings the code reads, and no other', () => {
         const src = sources();
-        const read = [...src.matchAll(/getConfiguration\('([\w.]+)'\)\.get<\w+>\('([\w.]+)'/g)].map(m => `${m[1]}.${m[2]}`);
+        // spinbox.* is the Spinbox extension's, which declares it: the two share its telemetry switch.
+        const read = [...src.matchAll(/getConfiguration\('([\w.]+)'\)\.get<\w+>\('([\w.]+)'/g)]
+            .filter(m => m[1] !== 'spinbox')
+            .map(m => `${m[1]}.${m[2]}`);
         expect(Object.keys(pkg.contributes.configuration.properties).sort()).toEqual([...new Set(read)].sort());
     });
 

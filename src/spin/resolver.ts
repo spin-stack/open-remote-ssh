@@ -10,6 +10,7 @@ import { parseSpinAuthority, SPIN_AUTHORITY } from './authority';
 import { SpinCli } from './cli';
 import { openWorkspace, type OpenedWorkspace } from './open';
 import { type Refusal, SpinRefusal } from './refusal';
+import { newTraceparent, traceIdOf } from './trace';
 
 /** The Spinbox extension, which carries the spin CLI of its release. */
 const SPINBOX_EXTENSION = 'spin-stack.spinbox';
@@ -50,21 +51,30 @@ export class SpinboxResolver implements vscode.RemoteAuthorityResolver, vscode.D
         this.logger.info(`Resolving Spinbox workspace '${workspace}' (attempt #${context.resolveAttempt})`);
         await this.close();
         const commit = editorCommit();
+        const traceparent = traced() ? newTraceparent() : undefined;
         const cli = new SpinCli(spinBinary(
             vscode.workspace.getConfiguration('remote.spin').get<string>('cliPath', ''),
             vscode.extensions.getExtension(SPINBOX_EXTENSION)?.extensionPath,
             process.platform === 'win32' ? 'win32' : process.platform,
             process.arch,
-        ));
+        ), process.env, traceparent);
+        const trace = traceparent ? ` (trace ${traceIdOf(traceparent)})` : '';
 
         try {
             const opened = await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
                 title: `Opening Spinbox workspace ${workspace}`,
-            }, () => openWorkspace({
-                cli, workspace, commit, version: vscode.version, start: true,
-                log: line => this.logger.trace(line),
-            }));
+                // spin code waits up to ten minutes for a passkey that adds this computer's key.
+                cancellable: true,
+            }, (progress, token) => {
+                const cancelled = new AbortController();
+                token.onCancellationRequested(() => cancelled.abort());
+                return openWorkspace({
+                    cli, workspace, commit, version: vscode.version, start: true, signal: cancelled.signal,
+                    log: line => this.logger.trace(line),
+                    say: message => progress.report({ message }),
+                });
+            });
             this.opened = opened;
             const localPort = await opened.connection.forwardLocal(opened.port);
             this.logger.info(`Spinbox workspace '${workspace}' (${opened.workspaceId}) open on 127.0.0.1:${localPort}`);
@@ -72,7 +82,7 @@ export class SpinboxResolver implements vscode.RemoteAuthorityResolver, vscode.D
         } catch (e) {
             await this.close();
             if (e instanceof SpinRefusal) {
-                this.logger.error(`Spinbox refused '${workspace}': ${e.refusal.code}`, e.message);
+                this.logger.error(`Spinbox refused '${workspace}': ${e.refusal.code}${trace}`, e.message);
                 // VS Code tries a temporary one again by itself: said once, on the first try.
                 if (!e.refusal.temporary || context.resolveAttempt === 1) {
                     void showRefusal(workspace, e.refusal);
@@ -81,7 +91,7 @@ export class SpinboxResolver implements vscode.RemoteAuthorityResolver, vscode.D
                     ? vscode.RemoteAuthorityResolverError.TemporarilyNotAvailable(e.message)
                     : vscode.RemoteAuthorityResolverError.NotAvailable(e.message, true);
             }
-            this.logger.error(`Opening Spinbox workspace '${workspace}' failed`, e);
+            this.logger.error(`Opening Spinbox workspace '${workspace}' failed${trace}`, e);
             throw vscode.RemoteAuthorityResolverError.TemporarilyNotAvailable(e instanceof Error ? e.message : String(e));
         }
     }
@@ -118,4 +128,13 @@ async function showRefusal(workspace: string, refusal: Refusal): Promise<void> {
         terminal.show();
         terminal.sendText(action.command, false);
     }
+}
+
+/**
+ * Whether a connection is traced: as VS Code's telemetry setting allows, which every extension
+ * is asked to respect, and the Spinbox extension's own (spinbox.telemetry), which this one shares.
+ */
+function traced(): boolean {
+    return vscode.env.isTelemetryEnabled
+        && vscode.workspace.getConfiguration('spinbox').get<boolean>('telemetry', true) === true;
 }
