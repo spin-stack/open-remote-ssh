@@ -20,6 +20,10 @@ export interface OpenOptions {
     version?: string;
     start: boolean;
     log: (line: string) => void;
+    /** Says what the person is waited on for, in the progress they see. */
+    say?: (message: string) => void;
+    /** Ends what runs when the person cancels the open. */
+    signal?: AbortSignal;
     readyTimeoutMs?: number;
 }
 
@@ -49,7 +53,10 @@ export async function openWorkspace(o: OpenOptions): Promise<OpenedWorkspace> {
     }
 
     o.log(`spin code ${o.workspace} (VS Code ${o.version ?? ''} ${o.commit})`);
-    const answer = await o.cli.code({ workspace: o.workspace, commit: o.commit, version: o.version, start: o.start });
+    const answer = await o.cli.code({
+        workspace: o.workspace, commit: o.commit, version: o.version, start: o.start, signal: o.signal,
+        onConfirmingKey: c => o.say?.(`Confirm with your passkey, in the browser page spin opened, that ${c.name} connects to your workspaces`),
+    });
     if ('error' in answer) {
         throw new SpinRefusal(refusalOf(answer.error));
     }

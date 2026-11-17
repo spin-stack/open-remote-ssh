@@ -7,7 +7,7 @@ import * as path from 'path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type * as vscodeTypes from 'vscode';
 import { activate } from '../../src/extension';
-import { configOverrides, env, ResolvedAuthority, RemoteAuthorityResolverError, resolvers, shownErrors } from '../mocks/vscode';
+import { configOverrides, env, progress, reported, ResolvedAuthority, RemoteAuthorityResolverError, resolvers, shownErrors } from '../mocks/vscode';
 import { keygen, type Sshd, startSshd } from '../sshd';
 
 // `spin+<workspace>` from the extension's activation to a request answered by the workspace's
@@ -41,6 +41,8 @@ const [cmd, ...args] = process.argv.slice(2);
 fs.appendFileSync(path.join(fixture, 'calls'), JSON.stringify([cmd, ...args]) + '\\n');
 if (cmd === 'code' || cmd === 'ssh-session') {
     const a = JSON.parse(fs.readFileSync(path.join(fixture, cmd === 'code' ? 'code.json' : 'session.json'), 'utf8'));
+    for (const line of a.before ?? []) { process.stdout.write(JSON.stringify(line) + '\\n'); }
+    if (a.hang) { setInterval(() => undefined, 1000); return; }
     process.stdout.write(JSON.stringify(a.answer, null, 2) + '\\n');
     process.exit(a.exit);
 } else if (cmd === 'tunnel' && args[0] === '${SESSION}') {
@@ -70,8 +72,8 @@ id=$(printf '%s\\n' "$SSH_ORIGINAL_COMMAND" | sed -n 's/.*echo "\\(spinbox-[0-9a
 printf '%s: start\\nexitCode==0==\\nlisteningOn==%s==\\nconnectionToken==%s==\\n%s: end\\n' "$id" ${codePort} ${TOKEN} "$id"
 `;
 
-function answerCode(answer: unknown, exit = 0) {
-    fs.writeFileSync(path.join(fixture, 'code.json'), JSON.stringify({ answer, exit }));
+function answerCode(answer: unknown, exit = 0, before: unknown[] = [], hang = false) {
+    fs.writeFileSync(path.join(fixture, 'code.json'), JSON.stringify({ answer, exit, before, hang }));
 }
 
 function answerSession(answer: unknown, exit = 0) {
@@ -139,6 +141,10 @@ afterEach(() => {
         fs.rmSync(path.join(fixture, f), { force: true });
     }
     shownErrors.length = 0;
+    reported.length = 0;
+    progress.cancelOnReport = false;
+    env.isTelemetryEnabled = false;
+    configOverrides.delete('spinbox.telemetry');
 });
 
 afterAll(async () => {
@@ -201,6 +207,63 @@ describe('spin+<workspace>', () => {
             expect(run).toContain('-o StrictHostKeyChecking=yes');
         }
         expect(ran.some(r => /-W 127\.0\.0\.1:\d+ root@/.test(r)), 'the request went through ssh -W').toBe(true);
+    }, 30_000);
+
+    // A connection is one trace: what the CLI does for it - the workspace readied, the session
+    // opened, the tunnel carried - is found in Admin → Traces under one id. Off as VS Code's
+    // telemetry is, or Spinbox's own setting.
+    for (const tc of [
+        { name: 'with telemetry on', telemetry: true, spinbox: true, traced: true },
+        { name: 'with VS Code\'s telemetry off', telemetry: false, spinbox: true, traced: false },
+        { name: 'with Spinbox\'s telemetry off', telemetry: true, spinbox: false, traced: false },
+    ]) {
+        it(`traces the connection's CLI commands as one ${tc.name}`, async () => {
+            env.isTelemetryEnabled = tc.telemetry;
+            configOverrides.set('spinbox.telemetry', tc.spinbox);
+            answerCode({ workspace_id: 'w1', host: 'spin.unit-ws', folder_uri: 'vscode-remote://spin+unit-ws/root', server: 'carried' });
+            opensSession();
+            await resolve('spin+unit-ws');
+
+            const asked = calls();
+            expect(asked.map(c => c[0])).toEqual(['code', 'ssh-session', 'tunnel']);
+            const parents = asked.map(c => {
+                const i = c.indexOf('--traceparent');
+                return i < 0 ? undefined : c[i + 1];
+            });
+            if (!tc.traced) {
+                expect(parents, 'a command was traced with telemetry off').toEqual([undefined, undefined, undefined]);
+                return;
+            }
+            expect(parents[0]).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/);
+            expect(parents, 'the connection\'s commands are not one trace').toEqual([parents[0], parents[0], parents[0]]);
+        }, 30_000);
+    }
+
+    // A first connection from this computer waits for the person's passkey to add its key
+    // (spin#1253): the wait is said where they look, not left as a progress that does not move.
+    it('says, while this computer\'s key waits for a passkey, what to do', async () => {
+        answerCode(
+            { workspace_id: 'w1', host: 'spin.unit-ws', folder_uri: 'vscode-remote://spin+unit-ws/root', server: 'carried' },
+            0,
+            [{ confirming_key: { url: 'https://app.example/settings/keys?add=k', fingerprint: 'SHA256:x', name: 'laptop' } }],
+        );
+        opensSession();
+        await resolve('spin+unit-ws');
+        expect(reported).toEqual(['Confirm with your passkey, in the browser page spin opened, that laptop connects to your workspaces']);
+    }, 30_000);
+
+    // spin code waits ten minutes for a passkey; a person who will not give one ends the open
+    // rather than wait them out.
+    it('ends the open, and spin code with it, when the person cancels it while the key waits', async () => {
+        answerCode(
+            { workspace_id: 'w1', host: 'spin.unit-ws', folder_uri: 'vscode-remote://spin+unit-ws/root', server: 'carried' },
+            0,
+            [{ confirming_key: { url: 'https://app.example/settings/keys?add=k', fingerprint: 'SHA256:x', name: 'laptop' } }],
+            true,
+        );
+        progress.cancelOnReport = true;
+        await expect(resolve('spin+unit-ws')).rejects.toBeInstanceOf(RemoteAuthorityResolverError);
+        expect(calls().map(c => c[0]), 'the open went on past its cancel').toEqual(['code']);
     }, 30_000);
 
     it('refuses a workspace that answers with another host key than the session\'s', async () => {
