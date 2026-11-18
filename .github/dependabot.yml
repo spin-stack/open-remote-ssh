@@ -23,6 +23,14 @@ updates:
       day: monday
     cooldown:
       default-days: 7
+      # go-tools is ours: a release of it reaches every repository the week it is made.
+      exclude: ["github.com/spin-stack/go-tools"]
+    # go-tools is indirect, required for the commands go.mod takes as tools, and Dependabot moves
+    # only direct requirements unless allowed; the entries are OR'ed, so the rest stay as they were.
+    allow:
+      - dependency-type: direct
+      - dependency-name: github.com/spin-stack/go-tools
+        dependency-type: all
     groups:
       go:
         patterns: ["*"]
