@@ -27,7 +27,7 @@
 		"test:e2e": "vitest run --config vitest.e2e.config.mts"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.6.6",
+		"@biomejs/biome": "2.6.8",
 		"@types/node": "22.20.5",
 		"@types/vscode": "1.146.0",
 		"@vitest/coverage-v8": "5.1.0",
