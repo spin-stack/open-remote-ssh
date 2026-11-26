@@ -5,7 +5,7 @@
 - name: cosign
   kind: module
   source: github.com/sigstore/cosign/v3/cmd/cosign
-  version: v3.1.4
+  version: v3.1.6
   track: github-release https://github.com/sigstore/cosign
   note: >-
     What signs a release's SHA256SUMS keyless in task publish:github, run with go run at this
