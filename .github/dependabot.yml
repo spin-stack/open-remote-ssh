@@ -1,6 +1,5 @@
 # Weekly and grouped, a week after a release (cooldown): one pull request per ecosystem. What
-# versions.yaml pins (the Task `go tool task` runs) is not here: `versions check` says what is
-# behind there.
+# versions.yaml pins is not here: `versions check` says what is behind there.
 version: 2
 updates:
   - package-ecosystem: github-actions
