@@ -1,6 +1,6 @@
 # What the extension pins from outside it, but its npm packages (pnpm-lock.yaml), go-tools' cmd/task
 # (go.mod) and the actions the workflows run (Dependabot's). It is go-tools' versions format:
-# `versions version <name>` reads an entry from a task, `versions check` says what is behind.
+# `versions version <name>` reads an entry from a task, `go tool task versions` says what is behind.
 
 - name: cosign
   kind: module
@@ -11,3 +11,10 @@
     What signs a release's SHA256SUMS keyless in task publish:github, run with go run at this
     version, so the checksum database holds it to its bytes and no runner needs it installed.
     vscode-spinbox pins it too: keep the two at one version.
+
+- name: actionlint
+  kind: module
+  source: github.com/rhysd/actionlint/cmd/actionlint
+  version: v1.7.12
+  track: github-release https://github.com/rhysd/actionlint
+  note: go tool task lint:workflows, which task gate runs. spin's version.

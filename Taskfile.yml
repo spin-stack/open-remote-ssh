@@ -4,11 +4,20 @@ version: '3'
 # lib/, packaged into a VSIX by hack/vsix. Every install goes through Socket Firewall (sfw), and every workflow
 # step is one of these tasks (taskgate), so a developer runs what CI runs.
 
+includes:
+  common:
+    taskfile: '{{.GO_TOOLS_TASKS}}'
+    flatten: true
+    vars:
+      RELEASE:
+        map: {elsewhere: publish.yml}
+
 vars:
   # The release a publish is for: the tag a workflow runs on, or TAG=v1.2.3 on the command line.
   TAG: '{{.GITHUB_REF_NAME}}'
-  # Where publish:github lays out the release's files.
-  RELEASE: build/release
+  # Where publish:github lays out the release's files. Not RELEASE: that is the common tasks'
+  # statement of how the repository is released, and a root var of the name hides it from them.
+  RELEASE_DIR: build/release
 
 tasks:
   install:
@@ -95,23 +104,24 @@ tasks:
       IDENTITY: '{{.GITHUB_SERVER_URL}}/{{.GITHUB_REPOSITORY}}/.github/workflows/publish.yml@{{.GITHUB_REF}}'
     cmds:
       - task: package
-      - rm -rf {{.RELEASE}} && mkdir -p {{.RELEASE}}
-      - cp spinbox-remote.vsix {{.RELEASE}}/spinbox-remote-{{.VERSION}}.vsix
-      - cd {{.RELEASE}} && sha256sum spinbox-remote-{{.VERSION}}.vsix > SHA256SUMS
-      - '{{.COSIGN}} sign-blob --yes --bundle {{.RELEASE}}/SHA256SUMS.sigstore.json {{.RELEASE}}/SHA256SUMS'
+      - rm -rf {{.RELEASE_DIR}} && mkdir -p {{.RELEASE_DIR}}
+      - cp spinbox-remote.vsix {{.RELEASE_DIR}}/spinbox-remote-{{.VERSION}}.vsix
+      - cd {{.RELEASE_DIR}} && sha256sum spinbox-remote-{{.VERSION}}.vsix > SHA256SUMS
+      - '{{.COSIGN}} sign-blob --yes --bundle {{.RELEASE_DIR}}/SHA256SUMS.sigstore.json {{.RELEASE_DIR}}/SHA256SUMS'
       # A signature nothing verifies is a step that can quietly stop working: one that does not
       # check fails here, before anything is published.
-      - '{{.COSIGN}} verify-blob --bundle {{.RELEASE}}/SHA256SUMS.sigstore.json --certificate-identity {{.IDENTITY}} --certificate-oidc-issuer https://token.actions.githubusercontent.com {{.RELEASE}}/SHA256SUMS'
+      - '{{.COSIGN}} verify-blob --bundle {{.RELEASE_DIR}}/SHA256SUMS.sigstore.json --certificate-identity {{.IDENTITY}} --certificate-oidc-issuer https://token.actions.githubusercontent.com {{.RELEASE_DIR}}/SHA256SUMS'
       # Created with its files at once, so no release is ever listed without them.
-      - gh release view {{.TAG}} >/dev/null 2>&1 || gh release create {{.TAG}} --verify-tag --title {{.TAG}} --generate-notes {{.RELEASE}}/*
-      - gh release upload {{.TAG}} --clobber {{.RELEASE}}/*
+      - gh release view {{.TAG}} >/dev/null 2>&1 || gh release create {{.TAG}} --verify-tag --title {{.TAG}} --generate-notes {{.RELEASE_DIR}}/*
+      - gh release upload {{.TAG}} --clobber {{.RELEASE_DIR}}/*
 
   gate:
-    desc: What holds the repository's shape - every install through the firewall, every workflow step a task, and no commit since origin/main by a test's identity.
+    desc: What holds the repository's shape - every install through the firewall, every workflow step a task, go-tools' common tasks as every repository has them, the workflows through actionlint, and no commit since origin/main by a test's identity.
     cmds:
       - sfw check
       # The Task running this one, which taskgate asks for the task names.
-      - taskgate -task {{.TASK_EXE}}
+      - taskgate -common -task {{.TASK_EXE}}
+      - task: lint:workflows
       # A test that writes git's author into the checkout makes every commit after it the
       # test's; this refuses those commits before they reach main.
       - testidentity -base origin/main
