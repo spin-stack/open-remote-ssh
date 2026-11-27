@@ -30,10 +30,10 @@
 		"@biomejs/biome": "2.6.8",
 		"@types/node": "22.20.5",
 		"@types/vscode": "1.146.0",
-		"@vitest/coverage-v8": "5.1.0",
+		"@vitest/coverage-v8": "5.1.1",
 		"esbuild": "0.28.2",
 		"typescript": "7.0.2",
-		"vitest": "5.1.0"
+		"vitest": "5.1.1"
 	},
 	"activationEvents": [
 		"onResolveRemoteAuthority:spin"
